@@ -71,6 +71,7 @@ class Pom(object):
                 'groupId': findtext(dependency, 'groupId'),
                 'artifactId': findtext(dependency, 'artifactId'),
                 'version': findtext(dependency, 'version'),
+                'type': findtext(dependency, 'type', 'jar'),
                 'scope': findtext(dependency, 'scope'),
             }
             dep['source'] = self.name
@@ -80,12 +81,16 @@ class Pom(object):
         # dependencyManagement
         dependencyManagement = []
         for dependency in findall(self.xml, 'dependencyManagement/dependencies/dependency'):
-            dependencyManagement.append({
+            dep = {
                 'groupId': findtext(dependency, 'groupId'),
                 'artifactId': findtext(dependency, 'artifactId'),
                 'version': findtext(dependency, 'version'),
+                'type': findtext(dependency, 'type', 'jar'),
                 'scope': findtext(dependency, 'scope'),
-            })
+            }
+            dep['source'] = self.name
+            dep['sourceVersion'] = self.name if self.infos['version'] else None
+            dependencyManagement.append(dep)
         self.dependencyManagement = dependencyManagement
         #
         return self
