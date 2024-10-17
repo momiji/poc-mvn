@@ -48,7 +48,16 @@ print(depMgtMap)
 # compute pom import in dependencyManagement
 print("Computing pom import in dependencyManagement")
 for dep in depMgt:
-    pass
+    if dep['type'] == 'pom' and dep['scope'] == 'import':
+        dep_file = find_pom_file(dep, root_pom.file)
+        print(f"Parsing imported pom: {dep_file}")
+        dep_pom = parse_pom_file(dep_file)
+        # TODO priority ? of imported relative to existing before or after ?
+        for dep in dep_pom.dependencyManagement:
+            key = (dep['groupId'], dep['artifactId'])
+            if key not in depMgtMap:
+                depMgtMap[key] = len(depMgt)
+                depMgt.append(dep)
 
 # compute dependencies from root and all parents
 print("Computing dependencies")

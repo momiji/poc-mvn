@@ -72,7 +72,7 @@ class Pom(object):
                 'artifactId': findtext(dependency, 'artifactId'),
                 'version': findtext(dependency, 'version'),
                 'type': findtext(dependency, 'type', 'jar'),
-                'scope': findtext(dependency, 'scope'),
+                'scope': findtext(dependency, 'scope', 'compile'),
             }
             dep['source'] = self.name
             dep['sourceVersion'] = self.name if self.infos['version'] else None
@@ -86,7 +86,7 @@ class Pom(object):
                 'artifactId': findtext(dependency, 'artifactId'),
                 'version': findtext(dependency, 'version'),
                 'type': findtext(dependency, 'type', 'jar'),
-                'scope': findtext(dependency, 'scope'),
+                'scope': findtext(dependency, 'scope', 'compile'),
             }
             dep['source'] = self.name
             dep['sourceVersion'] = self.name if self.infos['version'] else None
