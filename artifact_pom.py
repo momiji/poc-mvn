@@ -55,6 +55,7 @@ class ArtifactPom(object):
             parent.relativePath = ArtifactPom.findtext(project_parent, 'relativePath')
             infos.groupId = parent.groupId if infos.groupId is None else infos.groupId
             infos.version = parent.version if infos.version is None else infos.version
+            infos.fullname = f"{infos.groupId}:{infos.artifactId}:{infos.version}"
         self.parent = parent
         # properties
         properties = {}
@@ -67,7 +68,9 @@ class ArtifactPom(object):
                 else:
                     name = prop.tag[POM_NAMESPACE_LEN:]
                     value = prop.text
-                properties[name] = value
+                properties[name] = edict(value=value)
+        # immediately resolve builtin properties
+        self.builtin_properties(properties)
         self.properties = properties
         # dependencyManagement
         dependencyManagement = []
@@ -160,25 +163,32 @@ class ArtifactPom(object):
             print(f"Unexpected tags: {tags} in pom {self.infos.fullname}\n{etree.tostring(elem)}")
 
     def builtin_properties(self, props: dict):
+        builtins = {}
         # add parent built-in properties
         if self.parent is not None:
-            props['parent.groupId'] = self.parent.groupId
-            props['parent.artifactId'] = self.parent.artifactId
-            props['parent.version'] = self.parent.version
-            props['project.parent.groupId'] = self.parent.groupId
-            props['project.parent.artifactId'] = self.parent.artifactId
-            props['project.parent.version'] = self.parent.version
+            builtins['parent.groupId'] = self.parent.groupId
+            builtins['parent.artifactId'] = self.parent.artifactId
+            builtins['parent.version'] = self.parent.version
+            builtins['project.parent.groupId'] = self.parent.groupId
+            builtins['project.parent.artifactId'] = self.parent.artifactId
+            builtins['project.parent.version'] = self.parent.version
         # add project built-in properties
-        props['artifactId'] = self.infos.artifactId
-        props['groupId'] = self.infos.groupId
-        props['version'] = self.infos.version
-        props['project.artifactId'] = self.infos.artifactId
-        props['project.groupId'] = self.infos.groupId
-        props['project.version'] = self.infos.version
-        props['pom.artifactId'] = self.infos.artifactId
-        props['pom.groupId'] = self.infos.groupId
-        props['pom.version'] = self.infos.version
-
+        builtins['artifactId'] = self.infos.artifactId
+        builtins['groupId'] = self.infos.groupId
+        builtins['version'] = self.infos.version
+        builtins['project.artifactId'] = self.infos.artifactId
+        builtins['project.groupId'] = self.infos.groupId
+        builtins['project.version'] = self.infos.version
+        builtins['pom.artifactId'] = self.infos.artifactId
+        builtins['pom.groupId'] = self.infos.groupId
+        builtins['pom.version'] = self.infos.version
+        # # resolve built-in properties
+        builtins = { k: edict(value=v) for k, v in builtins.items() }
+        # for value in props.values():
+        #     value.value = ArtifactPom.resolve(value.value, builtins)
+        # add built-in properties
+        props.update(builtins)
+    
     def resolve(value: str, props: dict = None) -> str:
         """
         Resolve properties in a string.
@@ -187,7 +197,8 @@ class ArtifactPom(object):
         if props is None or value is None: return value
         def resolve_match(match):
             key = match.group(1)
-            return props.get(key, match.group(0))
+            prop = props.get(key, None)
+            return prop.value if prop is not None else match.group(0)
         return re.sub(r'\$\{([^}]+)\}', resolve_match, value)
 
 if __name__ == '__main__':

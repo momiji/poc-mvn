@@ -5,7 +5,7 @@
 
   <groupId>mygroup</groupId>
   <artifactId>myparent</artifactId>
-  <version>1.0-SNAPSHOT</version>
+  <version>${revision}</version>
   <packaging>pom</packaging>
 
   <name>myparent</name>
@@ -15,9 +15,11 @@
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.compiler.release>17</maven.compiler.release>
-    <a>${b}</a>
-    <b>parent</b>
-    <c>${project.artifactId}</c>
+    <revision>1.0-SNAPSHOT</revision>
+    <junit-bom.version>5.11.0</junit-bom.version>
+    <commons-pool.version>1.5</commons-pool.version>
+    <grpc.version>1.68.0</grpc.version>
+    <jackson.databind.version>2.17.0</jackson.databind.version>
   </properties>
 
   <dependencyManagement>
@@ -25,9 +27,16 @@
       <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
-        <version>5.11.0</version>
+        <version>${junit-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <dependency>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-dependencies</artifactId>
+          <version>3.3.4</version>
+          <type>pom</type>
+          <scope>import</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>
