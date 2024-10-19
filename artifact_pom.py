@@ -48,6 +48,7 @@ class ArtifactPom(object):
         parent = None
         project_parent = ArtifactPom.find(self.xml, 'parent')
         if project_parent is not None:
+            self.unexpected_tags(project_parent, '*', ['groupId', 'artifactId', 'version', 'relativePath'])
             parent = edict()
             parent.groupId = ArtifactPom.findtext(project_parent, 'groupId')
             parent.artifactId = ArtifactPom.findtext(project_parent, 'artifactId')
@@ -64,10 +65,10 @@ class ArtifactPom(object):
             for prop in project_properties.iterchildren():
                 if prop.tag == POM + 'property':
                     name = prop.get('name')
-                    value = prop.get('value')
+                    value = prop.get('value', '')
                 else:
                     name = prop.tag[POM_NAMESPACE_LEN:]
-                    value = prop.text
+                    value = prop.text or ''
                 properties[name] = edict(value=value)
         # immediately resolve builtin properties
         self.builtin_properties(properties)
@@ -75,6 +76,7 @@ class ArtifactPom(object):
         # dependencyManagement
         dependencyManagement = []
         for dependency in ArtifactPom.findall(self.xml, 'dependencyManagement/dependencies/dependency'):
+            self.unexpected_tags(dependency, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
             dep = edict()
             dep.groupId = ArtifactPom.findtext(dependency, 'groupId')
             dep.artifactId = ArtifactPom.findtext(dependency, 'artifactId')
@@ -82,8 +84,9 @@ class ArtifactPom(object):
             dep.relativePath = None
             dep.type = ArtifactPom.findtext(dependency, 'type', 'jar')
             dep.scope = ArtifactPom.findtext(dependency, 'scope', 'compile')
+            dep.classifier = ArtifactPom.findtext(dependency, 'classifier')
             dep.key = f"{dep.groupId}:{dep.artifactId}"
-            dep.name = f"{dep.groupId}:{dep.artifactId}:{dep.version}"
+            dep.fullname = f"{dep.groupId}:{dep.artifactId}:{dep.version}"
             # exclusions
             dep_exclusions = ArtifactPom.findall(dependency, 'exclusions/exclusion')
             exclusions = []
@@ -92,6 +95,7 @@ class ArtifactPom(object):
                 excl = edict()
                 excl.groupId = ArtifactPom.findtext(exclusion, 'groupId')
                 excl.artifactId = ArtifactPom.findtext(exclusion, 'artifactId')
+                excl.key = f"{excl.groupId}:{excl.artifactId}"
                 exclusions.append(excl)
             dep.exclusions = exclusions
             # dep.sourceFile = self.name
@@ -101,6 +105,7 @@ class ArtifactPom(object):
         # dependencies
         dependencies = []
         for dependency in ArtifactPom.findall(self.xml, 'dependencies/dependency'):
+            self.unexpected_tags(dependency, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
             dep = edict()
             dep.groupId = ArtifactPom.findtext(dependency, 'groupId')
             dep.artifactId = ArtifactPom.findtext(dependency, 'artifactId')
@@ -108,6 +113,7 @@ class ArtifactPom(object):
             dep.relativePath = None
             dep.type = ArtifactPom.findtext(dependency, 'type', 'jar')
             dep.scope = ArtifactPom.findtext(dependency, 'scope', 'compile')
+            dep.classifier = ArtifactPom.findtext(dependency, 'classifier')
             dep.key = f"{dep.groupId}:{dep.artifactId}"
             dep.name = f"{dep.groupId}:{dep.artifactId}:{dep.version}"
             dep_exclusions = ArtifactPom.findall(dependency, 'exclusions/exclusion')
@@ -118,6 +124,7 @@ class ArtifactPom(object):
                 excl = edict()
                 excl.groupId = ArtifactPom.findtext(exclusion, 'groupId')
                 excl.artifactId = ArtifactPom.findtext(exclusion, 'artifactId')
+                excl.key = f"{excl.groupId}:{excl.artifactId}"
                 exclusions.append(excl)
             dep.exclusions = exclusions
             # dep.sourceFile = self.name
@@ -160,7 +167,7 @@ class ArtifactPom(object):
         tags = ArtifactPom.findtags(elem, tag)
         tags = [ t for t in tags if t not in allowed ]
         if len(tags) > 0:
-            print(f"Unexpected tags: {tags} in pom {self.infos.fullname}\n{etree.tostring(elem)}")
+            raise Exception(f"Unexpected tags: {tags} in pom {self.infos.fullname}\n{etree.tostring(elem)}")
 
     def builtin_properties(self, props: dict):
         builtins = {}

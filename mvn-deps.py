@@ -2,9 +2,17 @@ import logging, pathlib, os, sys
 from artifact_pom import ArtifactPom
 from easydict import EasyDict as edict
 
+color = True
+
+ALL_SCOPES = { 'compile':'compile', 'runtime':'runtime','test': 'test' }
+ALL_SCOPES_KEYS = list(ALL_SCOPES.keys())
+COMPILE_SCOPES = { 'compile':'compile', 'runtime':'runtime' }
+TEST_SCOPES = { 'test': 'test', 'compile': 'test', 'runtime': 'test' }
+SKIP_SCOPES = ['runtime']
+
 locations = {}
 loaded_poms = {}
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 def register_location(file):
     pom = load_pom_file(file)
@@ -13,11 +21,11 @@ def register_location(file):
     resolve_version(pom.infos, props)
     locations[pom.infos.fullname] = file
 
-def load_pom_file(file, path = []):
+def load_pom_file(file, paths = [], allow_skip = False):
     if os.path.exists(file):
         return ArtifactPom.parse(file)
-    print(f"missing pom file: {file}    # {" > ".join(path)}")
-    return None
+    if allow_skip: return None
+    raise Exception(f"missing pom file: {file} from {' > '.join(paths)}")
     # if file in loaded_poms:
     #     return loaded_poms[file]
     # logging.info(f"Parsing pom {file}")
@@ -25,14 +33,17 @@ def load_pom_file(file, path = []):
     # loaded_poms[file] = loaded_pom
     # return loaded_pom
 
-def load_pom_dep(dep, base, path):
+def load_pom_dep(dep, base, paths, allow_skip = False):
     file = find_pom_file(dep, base)
-    return load_pom_file(file, path)
+    return load_pom_file(file, paths, allow_skip = allow_skip)
 
 def find_pom_file(dep, base):
+    # try to load relativePath, maven silently ignore missing files
     if dep.relativePath != None and dep.relativePath != "":
         file = os.path.join(os.path.dirname(base), dep.relativePath)
-    elif dep.fullname in locations:
+        if os.path.exists(file):
+            return file
+    if dep.fullname in locations:
         file = locations[dep.fullname]
     else:
         file = os.path.join(pathlib.Path.home(), '.m2/repository', dep.groupId.replace(".", "/"), dep.artifactId, dep.version, f"{dep.artifactId}-{dep.version}.pom")
@@ -42,19 +53,22 @@ def resolve_version(obj, props: dict = None):
     obj.groupId = ArtifactPom.resolve(obj.groupId, props)
     obj.artifactId = ArtifactPom.resolve(obj.artifactId, props)
     obj.version = ArtifactPom.resolve(obj.version, props)
+    obj.key = f"{obj.groupId}:{obj.artifactId}"
     obj.fullname = f"{obj.groupId}:{obj.artifactId}:{obj.version}"
 
 def resolve_properties(pom, props):
-    pom.builtin_properties(props)
-    for key, value in props.items():
-        props[key] = ArtifactPom.resolve(value, props)
+    for value in props.values():
+        value.value = ArtifactPom.resolve(value.value, props)
 
-def load_properties(pom, props = {}, path = []):
-    path = path + [pom.infos.fullname]
+def load_properties(pom, props = {}, paths = []) -> dict:
+    # this loads properties from the pom and its parent
+    # this is following RULE 1: project properties > parent properties
+    paths = paths + [pom.infos.fullname]
     # project properties
     for key, value in pom.properties.items():
         if key not in props:
             props[key] = value
+            props[key].paths = paths
     # resolve properties partially
     resolve_properties(pom, props)
     # parent properties
@@ -62,86 +76,185 @@ def load_properties(pom, props = {}, path = []):
         # note: parent pom version cannot contain variables
         resolve_version(pom.parent, props)
         # load parent properties
-        parent_pom = load_pom_dep(pom.parent, pom.file, path)
-        load_properties(parent_pom, props, path)
+        parent_pom = load_pom_dep(pom.parent, pom.file, paths)
+        load_properties(parent_pom, props, paths)
     # resolve project version in case it was using a parent property
-    resolve_properties(pom, props)
+    # resolve_properties(pom, props)
     resolve_version(pom.infos, props)
     #
     return props
 
-def load_dependencyManagement(pom, ctx, path = []):
-    if pom is None: return
-    # this pom can have it's own properties and parent, so we need to load them
-    # however we don't want to override the properties of the parent
-    keep_props = ctx.props.copy()
-    load_properties(pom, ctx.props)
+def load_dependencyManagement(pom, ctx, props = {}, paths = []):
+    # incoming properties are used to resolve version in this pom
+    # however, they are not used in dependencyManagement is may contain
+    # this is following rULE 1 for parent and RULE 2 for dependencies
+    project_props = load_properties(pom, props.copy(), paths)
+    # project_props = load_properties(pom, {}, path)
+    forward_props = {}
     # resolve project version
-    resolve_version(pom.infos, ctx.props)
+    resolve_version(pom.infos, project_props)
     logging.debug(f"Loading dependencyManagement for {pom.infos.fullname}")
-    path = path + [pom.infos.fullname]
+    paths = paths + [pom.infos.fullname]
     # direct dependencies
     for dep in pom.dependencyManagement:
         if dep.type == 'pom' and dep.scope == 'import':
             continue
-        if dep.key in ctx.map:
-            continue
         # dep = clone(dep)
-        resolve_version(dep, ctx.props)
-        dep.paths = path
+        resolve_version(dep, project_props)
+        if dep.key in ctx.map: continue
+        dep.paths = paths
         ctx.map[dep.key] = dep
         ctx.mgts.append(dep)
+        logging.debug(f"  added {dep.fullname}")
     # imported dependencies
     for dep in pom.dependencyManagement:
         if dep.type != 'pom' or dep.scope != 'import':
             continue
-        if dep.key in ctx.map:
-            continue
         # dep = edict(dep.copy())
-        resolve_version(dep, ctx.props)
-        dep.paths = path
+        resolve_version(dep, project_props)
+        if dep.key in ctx.map: continue
+        dep.paths = paths
         ctx.map[dep.key] = dep
         ctx.mgts.append(dep)
-        dep_pom = load_pom_dep(dep, pom.file, path)
-        load_dependencyManagement(dep_pom, ctx, path)
+        # enter the imported pom
+        dep_pom = load_pom_dep(dep, pom.file, paths)
+        logging.debug(f"  importing {dep.fullname}")
+        load_dependencyManagement(dep_pom, ctx, props = forward_props, paths = paths)
     # parent dependency
     if pom.parent is not None:
         # note: parent pom version cannot contain variables
-        parent_pom = load_pom_dep(pom.parent, pom.file, path)
-        load_dependencyManagement(parent_pom, ctx, path)
-    # restore properties
-    ctx.props = keep_props
+        parent_pom = load_pom_dep(pom.parent, pom.file, paths)
+        logging.debug(f"  loading parent {pom.parent.fullname}")
+        load_dependencyManagement(parent_pom, ctx, props = project_props, paths = paths)
 
-def load_dependencies(pom, ctx, path = []):
-    # this pom can have it's own properties and parent, so we need to load them
-    # however we don't want to override the properties of the parent
-    keep_props = ctx.props.copy()
-    keep_excls = ctx.excls.copy()
-    load_properties(pom, ctx.props)
+def load_dependencies(pom, ctx, props = {}, paths = [], excls = [], allowed_scopes = {}):
+    # incoming properties are used to resolve version in this pom
+    # however, they are not used in dependencyManagement is may contain
+    # this is following RULE 2
+    project_props = load_properties(pom, props.copy())
+    forward_props = {}
     # resolve dependency version
-    resolve_version(pom.infos, ctx.props)
+    resolve_version(pom.infos, project_props)
     logging.debug(f"Loading dependencies for {pom.infos.fullname}")
-    path = path + [pom.infos.fullname]
-    pathVersion = path
+    paths = paths + [pom.infos.fullname]
+    pathsVersion = paths
     # direct dependencies
     for dep in pom.dependencies:
+        # ignore dependency if in exclusion list
+        if dep.key in excls:
+            continue
+        # ignoer dependency if scope is not allowed
+        if dep.scope not in ALL_SCOPES_KEYS:
+            raise Exception(f"Invalid scope {dep.scope} for {dep.groupId}:{dep.artifactId} at {paths}")
+        if dep.scope not in allowed_scopes.keys():
+            continue
+        dep.scope = allowed_scopes[dep.scope]
+        # process dependency
         if dep.version is None:
             # get version from dependencyManagement
             if dep.key in ctx.map:
                 # note: version should be already resolved
-                dep.version = ctx.map[dep.key].version
-                resolve_version(dep, ctx.props)
-                pathVersion = ctx.map[dep.key].paths
+                mgt = ctx.map[dep.key]
+                dep.version = mgt.version
+                resolve_version(dep, project_props)
+                pathsVersion = mgt.paths
+                # add exclusions
+                dep.exclusions.extend(mgt.exclusions)
             else:
-                raise Exception(f"Could not resolve version for {dep.groupId}:{dep.artifactId} at {path}")
+                raise Exception(f"Could not resolve version for {dep.groupId}:{dep.artifactId} at {paths}")
         else:
-            resolve_version(dep, ctx.props)
-        dep.paths = path
-        dep.pathsVersion = pathVersion
+            resolve_version(dep, project_props)
+        dep.paths = paths
+        dep.pathsVersion = pathsVersion
         ctx.deps.append(dep)
-    # restore keeps
-    ctx.props = keep_props
-    ctx.excls = keep_excls
+
+def load(pom, paths = [], excls = [], allowed_scopes = ALL_SCOPES):
+    # compute all properties sorted by key
+    props = load_properties(pom, paths = paths)
+
+    logging.info(f"Loading pom {pom.infos.fullname} for {paths} with scopes={allowed_scopes}")
+
+    # create context
+    ctx = edict(mgts = [], map = {}, deps = [])
+
+    # compute dependencies from root and all parents
+    # project priority > import priority > parent priority
+    logging.info("Computing dependencyManagement")
+    load_dependencyManagement(pom, ctx, paths = paths)
+
+    # compute dependencies from root and all parents
+    logging.info("Computing dependencies")
+    load_dependencies(pom, ctx, paths = paths, excls = excls, allowed_scopes = allowed_scopes)
+
+    # loop on all dependencies
+    for dep in ctx.deps[:]:
+        dep_paths = paths + [pom.infos.fullname]
+        dep_pom = load_pom_dep(dep, pom.file, dep_paths, allow_skip = dep.scope in SKIP_SCOPES)
+        if dep_pom is None: continue
+        dep_excls = excls + [excl.key for excl in dep.exclusions]
+        if dep.scope == 'test':
+            dep_scopes = TEST_SCOPES
+        else:
+            dep_scopes = COMPILE_SCOPES
+        dep_ctx = load(dep_pom, paths = dep_paths, excls = dep_excls, allowed_scopes = dep_scopes)
+        ctx.deps.extend(dep_ctx.deps)
+
+    # return context
+    ctx.props = props
+    return ctx
+
+def dump(pom, ctx, show_props = False, show_mgts = False, show_deps = False):
+    print("#" * 80)
+    print(f"# {pom.infos.fullname}")
+    print("#" * 80)
+    print()
+
+    # print all properties sorted by key
+    if show_props:
+        print("properties:")
+        for key in sorted(ctx.props.keys()):
+            print(key, " > ".join(ctx.props[key].paths))
+            value = ctx.props[key].value.replace("\n", "\\n")
+            path = " > ".join(ctx.props[key].paths[1:])
+            print(f"  {key}: {value}    # {path}")
+        print()
+
+    # print all dependencyManagement, sorted by groupId, artifactId, version
+    if show_mgts:
+        print("dependenciesManagement:")
+        for dep in sorted(ctx.mgts, key=lambda dep: (dep.groupId, dep.artifactId, dep.version)):
+            texts = [ f"- {dep.groupId}:{dep.artifactId}", f"  {dep.version}" ]
+            paths = [ " > ".join(dep.paths[1:]), " > ".join(dep.paths[1:])]
+            length = max([len(text) for text in texts])
+            length = max(length, 50)
+            for text, path in zip(texts, paths):
+                print(f"  {text.ljust(length)}    # {path}")
+        print()
+
+    # print all dependencies
+    if show_deps:
+        a = ''
+        c = ''
+        e = ''
+        print("dependencies:")
+        print()
+        previous = None
+        for dep in sorted(ctx.deps, key=lambda dep: (dep.groupId, dep.artifactId, len(dep.paths), dep.version)):
+            if color:
+                a = '\033[1;33m'
+                c = '\033[0;32m' if previous == f"{dep.groupId}:{dep.artifactId}" else '\033[1;32m'
+                e = '\033[m'
+            texts = [ f"{a}{dep.groupId}:{dep.artifactId}{e}", f"  {c}{dep.version}{e} ({dep.scope})" ]
+            paths = [ " > ".join(dep.paths[1:]), "- " + " > ".join(dep.pathsVersion[1:])]
+            if previous == f"{dep.groupId}:{dep.artifactId}":
+                texts = texts[1:]
+                paths = paths[1:]
+            length = max([len(text) for text in texts])
+            length = max(length, 80)
+            for text, path in zip(texts, paths):
+                print(f"  {text.ljust(length)}    # {path}")
+            previous = f"{dep.groupId}:{dep.artifactId}"
+        print()
 
 # todo : cache des pom chargés! par pour le moment car il y a pas de clone de pom
 # todo : exclusions sur dependencies et dependencyManagement
@@ -159,45 +272,6 @@ for module in root_pom.modules:
 
 # load root and modules poms
 root_pom = load_pom_file(root_pom_file)
+ctx = load(root_pom)
 
-# print all properties sorted by key
-props = load_properties(root_pom)
-print("properties:")
-for key in sorted(props.keys()):
-    value = props[key].replace("\n", "\\n")
-    print(f"  {key}: {value}")
-print()
-
-# context
-ctx = edict(mgts = [], map = {}, props = props, deps = [], excls = {})
-
-# compute dependencies from root and all parents
-# project priority > import priority > parent priority
-logging.info("Computing dependencyManagement")
-load_dependencyManagement(root_pom, ctx)
-
-# print all dependencyManagement, sorted by groupId, artifactId, version
-print("dependencyManagement:")
-for dep in sorted(ctx.mgts, key=lambda dep: (dep.groupId, dep.artifactId, dep.version)):
-    texts = [ f"- groupId: {dep.groupId}", f"  artifactId: {dep.artifactId}", f"  version: {dep.version}" ]
-    paths = [ " > ".join(dep.paths), " > ".join(dep.paths), " > ".join(dep.paths)]
-    length = max([len(text) for text in texts])
-    length = max(length, 80)
-    for text, path in zip(texts, paths):
-        print(f"  {text.ljust(length)}    # {path}")
-print()
-
-# compute dependencies from root and all parents
-logging.info("Computing dependencies")
-load_dependencies(root_pom, ctx)
-
-# print all dependencies
-print("dependency:")
-for dep in ctx.deps:
-    texts = [ f"- groupId: {dep.groupId}", f"  artifactId: {dep.artifactId}", f"  version: {dep.version}" ]
-    paths = [ " > ".join(dep.paths), " > ".join(dep.paths), " > ".join(dep.pathsVersion)]
-    length = max([len(text) for text in texts])
-    length = max(length, 80)
-    for text, path in zip(texts, paths):
-        print(f"  {text.ljust(length)}    # {path}")
-print()
+dump(root_pom, ctx, show_props = True, show_mgts = True, show_deps = True)
