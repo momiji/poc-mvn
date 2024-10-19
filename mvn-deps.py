@@ -1,18 +1,22 @@
-import logging, pathlib, os, sys
+import logging, pathlib, os
 from artifact_pom import ArtifactPom
 from easydict import EasyDict as edict
 
 color = True
 
-ALL_SCOPES = { 'compile':'compile', 'runtime':'runtime','test': 'test' }
+ALL_SCOPES = { 'compile':'compile', 'runtime':'runtime','test':'test' }
 ALL_SCOPES_KEYS = list(ALL_SCOPES.keys())
+
 COMPILE_SCOPES = { 'compile':'compile', 'runtime':'runtime' }
-TEST_SCOPES = { 'test': 'test', 'compile': 'test', 'runtime': 'test' }
+RUNTIME_SCOPES = { 'compile':'runtime', 'runtime':'runtime' }
+TEST_SCOPES = { 'test':'test', 'compile':'test', 'runtime':'test' }
+
+NEW_SCOPES = { 'compile':COMPILE_SCOPES, 'runtime':RUNTIME_SCOPES, 'test':TEST_SCOPES }
 SKIP_SCOPES = ['runtime']
 
 locations = {}
 loaded_poms = {}
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 def register_location(file):
     pom = load_pom_file(file)
@@ -137,7 +141,6 @@ def load_dependencies(pom, ctx, props = {}, paths = [], excls = [], allowed_scop
     resolve_version(pom.infos, project_props)
     logging.debug(f"Loading dependencies for {pom.infos.fullname}")
     paths = paths + [pom.infos.fullname]
-    pathsVersion = paths
     # direct dependencies
     for dep in pom.dependencies:
         # ignore dependency if in exclusion list
@@ -150,32 +153,30 @@ def load_dependencies(pom, ctx, props = {}, paths = [], excls = [], allowed_scop
             continue
         dep.scope = allowed_scopes[dep.scope]
         # process dependency
-        if dep.version is None:
-            # get version from dependencyManagement
-            if dep.key in ctx.map:
-                # note: version should be already resolved
-                mgt = ctx.map[dep.key]
-                dep.version = mgt.version
-                resolve_version(dep, project_props)
-                pathsVersion = mgt.paths
-                # add exclusions
-                dep.exclusions.extend(mgt.exclusions)
-            else:
-                raise Exception(f"Could not resolve version for {dep.groupId}:{dep.artifactId} at {paths}")
+        if dep.key in ctx.map:
+            # note: version should be already resolved
+            mgt = ctx.map[dep.key]
+            dep.version = mgt.version
+            resolve_version(dep, project_props)
+            pathsVersion = mgt.paths
+            # add exclusions
+            dep.exclusions.extend(mgt.exclusions)
         else:
+            # resolve version
+            pathsVersion = paths
             resolve_version(dep, project_props)
         dep.paths = paths
         dep.pathsVersion = pathsVersion
         ctx.deps.append(dep)
 
-def load(pom, paths = [], excls = [], allowed_scopes = ALL_SCOPES):
+def load(pom, paths = [], excls = [], allowed_scopes = ALL_SCOPES, mgts = [], map = {}):
     # compute all properties sorted by key
     props = load_properties(pom, paths = paths)
 
     logging.info(f"Loading pom {pom.infos.fullname} for {paths} with scopes={allowed_scopes}")
 
     # create context
-    ctx = edict(mgts = [], map = {}, deps = [])
+    ctx = edict(mgts = mgts.copy(), map = map.copy(), deps = [])
 
     # compute dependencies from root and all parents
     # project priority > import priority > parent priority
@@ -192,11 +193,8 @@ def load(pom, paths = [], excls = [], allowed_scopes = ALL_SCOPES):
         dep_pom = load_pom_dep(dep, pom.file, dep_paths, allow_skip = dep.scope in SKIP_SCOPES)
         if dep_pom is None: continue
         dep_excls = excls + [excl.key for excl in dep.exclusions]
-        if dep.scope == 'test':
-            dep_scopes = TEST_SCOPES
-        else:
-            dep_scopes = COMPILE_SCOPES
-        dep_ctx = load(dep_pom, paths = dep_paths, excls = dep_excls, allowed_scopes = dep_scopes)
+        dep_scopes = NEW_SCOPES[dep.scope]
+        dep_ctx = load(dep_pom, paths = dep_paths, excls = dep_excls, allowed_scopes = dep_scopes, mgts = ctx.mgts, map = ctx.map)
         ctx.deps.extend(dep_ctx.deps)
 
     # return context
@@ -211,22 +209,29 @@ def dump(pom, ctx, show_props = False, show_mgts = False, show_deps = False):
 
     # print all properties sorted by key
     if show_props:
+        a = '\033[1;33m' if color else ''
+        c = '\033[1;32m' if color else ''
+        e = '\033[m' if color else ''
         print("properties:")
+        print()
         for key in sorted(ctx.props.keys()):
-            print(key, " > ".join(ctx.props[key].paths))
             value = ctx.props[key].value.replace("\n", "\\n")
             path = " > ".join(ctx.props[key].paths[1:])
-            print(f"  {key}: {value}    # {path}")
+            print(f"  {a}{key}{e}: {c}{value}{e}          # {path}")
         print()
 
     # print all dependencyManagement, sorted by groupId, artifactId, version
     if show_mgts:
+        a = '\033[1;33m' if color else ''
+        c = '\033[1;32m' if color else ''
+        e = '\033[m' if color else ''
         print("dependenciesManagement:")
+        print()
         for dep in sorted(ctx.mgts, key=lambda dep: (dep.groupId, dep.artifactId, dep.version)):
-            texts = [ f"- {dep.groupId}:{dep.artifactId}", f"  {dep.version}" ]
+            texts = [ f"{a}{dep.groupId}:{dep.artifactId}{e}", f"  {c}{dep.version}{e}" ]
             paths = [ " > ".join(dep.paths[1:]), " > ".join(dep.paths[1:])]
             length = max([len(text) for text in texts])
-            length = max(length, 50)
+            length = max(length, 80)
             for text, path in zip(texts, paths):
                 print(f"  {text.ljust(length)}    # {path}")
         print()
