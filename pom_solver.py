@@ -1,7 +1,3 @@
-from pydoc import resolve
-
-from pkg_resources import parse_version
-
 from pom_loader import load_pom_parents, resolve_value, load_pom_from_file, resolve_artifact, load_pom_from_dependency
 from pom_struct import PomProject, PomPaths, PomMgts, PomExclusion, PomProperties
 
@@ -20,7 +16,7 @@ ORDERED_SCOPES = [ 'system', 'test', 'compile', 'provided', 'runtime' ]
 Scopes = dict[str, str]
 Exclusions = dict[str, PomExclusion]
 
-def resolve_pom(pom: PomProject, paths: PomPaths = None, props: PomProperties = None, mgts: PomMgts = None, excls: Exclusions = None, scopes: Scopes = None, load_mgts = False, load_deps = False):
+def resolve_pom(pom: PomProject, paths: PomPaths | None = None, props: PomProperties | None = None, mgts: PomMgts | None = None, excls: Exclusions | None = None, scopes: Scopes | None = None, load_mgts = False, load_deps = False):
     """
     Resolve all dependencies a pom project.
     """
@@ -55,7 +51,7 @@ def resolve_properties(pom: PomProject):
         prop.value = resolve_value(prop.value, pom.computed_properties, pom.builtins)
     
 
-def load_managements(pom: PomProject, curr: PomProject = None, paths: PomPaths = None):
+def load_managements(pom: PomProject, curr: PomProject | None = None, paths: PomPaths | None = None):
     """
     Load all dependencyManagement from pom.
     It is assumed that all properties have already been loaded.
@@ -105,7 +101,7 @@ def load_managements(pom: PomProject, curr: PomProject = None, paths: PomPaths =
     if curr.parent is not None:
         load_managements(pom, curr.parent.pom, paths = paths)
 
-def load_dependencies(pom: PomProject, paths: PomPaths = None, excls: Exclusions = None, scopes: Scopes = None):
+def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exclusions | None = None, scopes: Scopes | None = None):
     """
     Load all dependencies from pom.
     It is assumed that all properties have already been loaded.

@@ -10,7 +10,7 @@ class PomProject:
     version: str
     name: str
     packaging: str
-    parent: 'PomParent'
+    parent: 'PomParent | None'
     properties: 'PomProperties'
     builtins: 'PomProperties'
     managements: list['PomDependency']
@@ -52,8 +52,8 @@ class PomProperty:
     Represents a Maven properties.
     """
     name: str
-    value: str | None
-    paths: list[PomProject] = []
+    value: str
+    paths: list[PomProject]
 
     def __repr__(self) -> str:
         return f"{self.name}={self.value}"
@@ -63,7 +63,7 @@ class PomProperties(dict[str, PomProperty]):
     """
     Represents a Maven properties.
     """
-    def add(self, name: str, value: str, paths: list[PomProject] = None):
+    def add(self, name: str, value: str, paths: list[PomProject] | None = None):
         """
         Add a property value, only if not already exists.
         """
@@ -71,14 +71,14 @@ class PomProperties(dict[str, PomProperty]):
             return
         self.set(name, value, paths)
 
-    def set(self, name: str, value: str, paths: list[PomProject] = None):
+    def set(self, name: str, value: str, paths: list[PomProject] | None = None):
         """
         Add or Update a property value if already exists.
         """
         prop = PomProperty()
         prop.name = name
         prop.value = value
-        prop.paths = paths
+        prop.paths = paths or []
         self[name] = prop
 
 
@@ -131,6 +131,7 @@ if __name__ == "__main__":
     project1.parent.groupId = "com.example1.parent"
     project2 = project1.clone()
     project2.groupId = "com.example2"
+    assert project2.parent is not None
     project2.parent.groupId = "com.example2.parent"
     assert project1.groupId == "com.example1"
     assert project2.groupId == "com.example2"

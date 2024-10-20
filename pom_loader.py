@@ -34,14 +34,11 @@ def find_pom_location(dependency: PomParent | PomDependency, base: str) -> str:
     if dependency.fullname() in locations:
         return locations[dependency.fullname()]
     # try to load relativePath, maven silently ignore missing files
-    if dependency.relativePath is not None and dependency.relativePath != "":
+    if dependency.relativePath != "":
         file = os.path.join(os.path.dirname(base), dependency.relativePath)
         if os.path.exists(file):
             return file
-    if dependency.fullname() in cache:
-        file = cache[dependency.fullname()]
-    else:
-        file = os.path.join(pathlib.Path.home(), '.m2/repository', dependency.groupId.replace(".", "/"), dependency.artifactId, dependency.version, f"{dependency.artifactId}-{dependency.version}.pom")
+    file = os.path.join(pathlib.Path.home(), '.m2/repository', dependency.groupId.replace(".", "/"), dependency.artifactId, dependency.version, f"{dependency.artifactId}-{dependency.version}.pom")
     return file
 
 
@@ -54,7 +51,7 @@ def register_pom_location(file: str):
     locations[pom.fullname()] = file
 
 
-def load_pom_parents(pom: PomProject, props: PomProperties = None, paths: PomPaths = None):
+def load_pom_parents(pom: PomProject, props: PomProperties | None = None, paths: PomPaths | None = None):
     """
     Load the properties of a pom file into props, pom parents.
     It resolves only the necessary properties to find the parents.
@@ -88,11 +85,11 @@ def resolve_artifact(infos: PomInfos, props: PomProperties, builtins: PomPropert
     infos.artifactId = resolve_value(infos.artifactId, props, builtins)
     infos.version = resolve_value(infos.version, props, builtins)
 
-def resolve_value(value: str, props: PomProperties, builtins: PomProperties) -> str | None:
+def resolve_value(value: str, props: PomProperties, builtins: PomProperties) -> str:
     """
     Resolve value using provided properties: ${name} -> value.
     """
-    if value is None or '$' not in value: return value
+    if '$' not in value: return value
     def resolve_match(match):
         key = match.group(1)
         prop = props.get(key, None)

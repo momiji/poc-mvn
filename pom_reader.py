@@ -90,52 +90,37 @@ def read_pom(file: str) -> PomProject:
     pom.computed_managements = PomMgts()
     managements = find_all(doc, 'dependencyManagement/dependencies/dependency')
     for dep in managements:
-        unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
-        dependency = PomDependency()
-        dependency.groupId = find_text(dep, 'groupId')
-        dependency.artifactId = find_text(dep, 'artifactId')
-        dependency.version = find_text(dep, 'version')
-        dependency.scope = find_text(dep, 'scope')
-        dependency.type = find_text(dep, 'type')
-        dependency.classifier = find_text(dep, 'classifier')
-        dependency.relativePath = None
-        dependency.exclusions = []
-        pom.managements.append(dependency)
-        # read exclusions
-        exclusions = find_all(dep, 'exclusions/exclusion')
-        for excl in exclusions:
-            exclusion = PomExclusion()
-            exclusion.groupId = find_text(excl, 'groupId')
-            exclusion.artifactId = find_text(excl, 'artifactId')
-            dependency.exclusions.append(exclusion)
+        pom.managements.append(get_dependency(pom, dep))
 
     # read dependencies
     pom.dependencies = []
     pom.computed_dependencies = PomDeps()
     dependencies = find_all(doc, 'dependencies/dependency')
     for dep in dependencies:
-        unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
-        dependency = PomDependency()
-        dependency.groupId = find_text(dep, 'groupId')
-        dependency.artifactId = find_text(dep, 'artifactId')
-        dependency.version = find_text(dep, 'version')
-        dependency.scope = find_text(dep, 'scope')
-        dependency.type = find_text(dep, 'type')
-        dependency.classifier = find_text(dep, 'classifier')
-        dependency.relativePath = None
-        dependency.exclusions = []
-        pom.dependencies.append(dependency)
-        # read exclusions
-        exclusions = find_all(dep, 'exclusions/exclusion')
-        for excl in exclusions:
-            exclusion = PomExclusion()
-            exclusion.groupId = find_text(excl, 'groupId')
-            exclusion.artifactId = find_text(excl, 'artifactId')
-            dependency.exclusions.append(exclusion)
-    
+        pom.dependencies.append(get_dependency(pom, dep))
+
     # return the pom object
     return pom
 
+def get_dependency(pom: PomProject, dep) -> PomDependency:
+    unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
+    dependency = PomDependency()
+    dependency.groupId = find_text(dep, 'groupId')
+    dependency.artifactId = find_text(dep, 'artifactId')
+    dependency.version = find_text(dep, 'version')
+    dependency.scope = find_text(dep, 'scope')
+    dependency.type = find_text(dep, 'type')
+    dependency.classifier = find_text(dep, 'classifier')
+    dependency.relativePath = ''
+    dependency.exclusions = []
+    # read exclusions
+    exclusions = find_all(dep, 'exclusions/exclusion')
+    for excl in exclusions:
+        exclusion = PomExclusion()
+        exclusion.groupId = find_text(excl, 'groupId')
+        exclusion.artifactId = find_text(excl, 'artifactId')
+        dependency.exclusions.append(exclusion)
+    return dependency
 
 def find(elem, tag: str):
     tag = tag.replace("/", "/" + POM)
@@ -147,7 +132,7 @@ def find_all(elem, tag: str):
     return elem.findall(POM + tag)
 
 
-def find_text(elem, tag: str, default: str = None) -> str:
+def find_text(elem, tag: str, default: str = '') -> str:
     tag = tag.replace("/", "/" + POM)
     elem = elem.find(POM + tag)
     return elem.text if elem is not None else default

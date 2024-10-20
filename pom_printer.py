@@ -34,8 +34,8 @@ def print_pom(pom: PomProject, indent: int = 120, color: bool = os.isatty(1)):
     print("Dependencies:")
     previous = None
     dep_cols = []
-    dep_col: PomDependency
-    dep_col_order: int
+    dep_col = PomDependency()
+    dep_col_order = 0
     for dep in sorted(pom.computed_dependencies, key=lambda d: (d.groupId, d.artifactId)):
         if previous is None or previous != dep.key_ga():
             previous = dep.key_ga()
@@ -74,7 +74,7 @@ def print_pom(pom: PomProject, indent: int = 120, color: bool = os.isatty(1)):
         size = len(start)
         deps = [d for d in dep_tree if len(d.paths) == size and d.paths[0:size] == start]
         for i, dep in enumerate(deps):
-            h = header + '\- ' if i + 1 == len(deps) else header + '+- '
+            h = header + '\\- ' if i + 1 == len(deps) else header + '+- '
             paths = dump_paths(dep.pathsVersion)
             print_comment(indent2, f"    {h}{c_name(dep.key_ga())}:{c_val(dep.version)}:{dep.scope}", paths, 'ver: ')
             childs = [d.paths[size] for d in dep_tree if len(d.paths) == size + 1 and d.paths[0:size] == start and d.paths[size].fullname() == dep.fullname()]
