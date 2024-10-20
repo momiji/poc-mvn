@@ -127,25 +127,25 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         if dep.scope != '' and dep.scope not in ALL_SCOPES_KEYS:
             raise Exception(f"Invalid scope {dep.scope} found in dependency {dep.fullname()} of pom {pom.fullname()}")
         # skip not allowed scopes
-        if dep.scope is not None and dep.scope not in scopes.keys():
+        if dep.scope != '' and dep.scope not in scopes.keys():
             continue
         # override version and exclusions from dependencyManagement
         dep.paths = paths
         dep.pathsVersion = paths
         if dep.key_ga() in pom.computed_managements:
             mgt = pom.computed_managements[dep.key_ga()]
-            if dep.version is None:
+            if dep.version == '':
                 dep.version = mgt.version
                 dep.pathsVersion = mgt.paths
-            if dep.scope is None: dep.scope = mgt.scope
-            if dep.type is None: dep.type = mgt.type
+            if dep.scope == '': dep.scope = mgt.scope
+            if dep.type == '': dep.type = mgt.type
             dep.version = mgt.version
             dep.paths = paths
             dep.pathsVersion = mgt.paths
             dep.exclusions.extend(mgt.exclusions)
         # update dependency with defaults
-        if dep.scope is None: dep.scope = 'compile'
-        if dep.type is None: dep.type = 'jar'
+        if dep.scope == '': dep.scope = 'compile'
+        if dep.type == '': dep.type = 'jar'
         dep.scope = scopes[dep.scope]
         # resolve artifact
         resolve_artifact(dep, pom.computed_properties, pom.builtins)

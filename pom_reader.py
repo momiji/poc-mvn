@@ -46,8 +46,8 @@ def read_pom(file: str) -> PomProject:
         pom.parent.relativePath = find_text(parent, 'relativePath')
 
         # fix missing project properties
-        if pom.groupId is None: pom.groupId = pom.parent.groupId
-        if pom.version is None: pom.version = pom.parent.version
+        if pom.groupId == '': pom.groupId = pom.parent.groupId
+        if pom.version == '': pom.version = pom.parent.version
 
     # read properties
     pom.properties = PomProperties()
