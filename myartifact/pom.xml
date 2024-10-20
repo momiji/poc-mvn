@@ -52,6 +52,10 @@
       <artifactId>jmespath-java</artifactId>
       <version>1.12.652</version>
     </dependency>
+    <dependency>
+      <groupId>commons-io</groupId>
+      <artifactId>commons-io</artifactId>
+    </dependency>
   </dependencies>
   <dependencyManagement>
     <dependencies>
