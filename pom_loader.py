@@ -34,7 +34,7 @@ def find_pom_location(dependency: PomParent | PomDependency, base: str) -> str:
     if dependency.fullname() in locations:
         return locations[dependency.fullname()]
     # try to load relativePath, maven silently ignore missing files
-    if dependency.relativePath != "":
+    if dependency.relativePath != '':
         file = os.path.join(os.path.dirname(base), dependency.relativePath)
         if os.path.exists(file):
             return file

@@ -135,7 +135,7 @@ def find_all(elem, tag: str):
 def find_text(elem, tag: str, default: str = '') -> str:
     tag = tag.replace("/", "/" + POM)
     elem = elem.find(POM + tag)
-    return elem.text if elem is not None else default
+    return elem.text if elem is not None and elem.text is not None else default
 
 
 def find_tags(elem, tag: str):

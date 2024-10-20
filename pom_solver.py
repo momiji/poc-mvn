@@ -72,7 +72,7 @@ def load_managements(pom: PomProject, curr: PomProject | None = None, paths: Pom
             continue
         resolve_artifact(dep, pom.computed_properties, curr.builtins)
         # fail on invalid scope
-        if dep.scope is not None and dep.scope not in ALL_SCOPES_KEYS:
+        if dep.scope != '' and dep.scope not in ALL_SCOPES_KEYS:
             raise Exception(f"Invalid scope {dep.scope} found in dependencyManagement {dep.fullname()} of pom {curr.fullname()}")
         # skip already loaded dependencies
         if dep.key_ga() in pom.computed_managements:
@@ -124,7 +124,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         if dep.key_ga() in excls:
             continue
         # fail on invalid scope
-        if dep.scope is not None and dep.scope not in ALL_SCOPES_KEYS:
+        if dep.scope != '' and dep.scope not in ALL_SCOPES_KEYS:
             raise Exception(f"Invalid scope {dep.scope} found in dependency {dep.fullname()} of pom {pom.fullname()}")
         # skip not allowed scopes
         if dep.scope is not None and dep.scope not in scopes.keys():

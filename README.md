@@ -1,44 +1,31 @@
-## TODO
+# mvn dependencies analyzer
 
-- profiles
+This is a tool to help analyze all maven dependencies, with the ability to understand where dependencies and versions are coming from.
 
-## Projects
+This is of course a work in progress and is limited to my use case.
 
-myartifact:
-- parent: myparent
-- dependency junit:
-    - defined in parent dependencyManagement, default version is 5.11.0
-    - used version 5.10.0 is defined in property
-    - dependency:tree shows version 5.10.0 even though both 10 and 11 are downloaded
-        - it's then not needed to analyze 5.11.0 => RULE 1
+So far:
 
-myparent:
-- define junit-bom
-- add openfeign-bom import with version xxx
-- version is overriden in myartifact but is not used as properties inheritance is only for parents
+- [x] propreties with parents
+- [x] dependencyManagement with parents
+- [x] dependencies with parents
+- [ ] profiles
+- [ ] download missing pom
 
-## Rules
+## Using
 
-RULE_1
+TODO
 
-Project properties are computed by taking project properties, then parent properties that are not defined yet, ...
-Therefore, if the parent uses a property overriden in project, it is the project one that wins.
+## Tests
 
-    junit is in version 5.10.0 as specified in myartifact
-    grp-core is in version 1.68.0 as specified un myparent
+You need to compile maven project to download all dependencies:
 
-RULE_2
+```bash
+( cd myartifact ; mvn compile )
+```
 
-For dependencyManagement, we don't inherit project properties.
-We always start with a fresh new empty props.
+Then test:
 
-    commons-pool is in version 1.6 as specified in spring-boot dependencyManagement
-
-The same applies for dependencies.
-
-    jackson-databind is in version 2.17.2 as specified in dependency
-
-
-## Install
-
-Use script install.sh to build and install all pom into local m2 repository.
+```bash
+python pom_printer.py
+```
