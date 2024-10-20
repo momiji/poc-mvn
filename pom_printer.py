@@ -32,12 +32,12 @@ def print_pom(pom: PomProject, indent: int = 120, color: bool = os.isatty(1)):
 
     print()
     print("Dependencies:")
-    previous = None
+    previous = ''
     dep_cols = []
     dep_col = PomDependency()
     dep_col_order = 0
     for dep in sorted(pom.computed_dependencies, key=lambda d: (d.groupId, d.artifactId)):
-        if previous is None or previous != dep.key_ga():
+        if previous == '' or previous != dep.key_ga():
             previous = dep.key_ga()
             dep_col = PomDependency()
             dep_col.groupId = dep.groupId
