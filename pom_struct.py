@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import copy, deepcopy
 
 class PomProject:
     """
@@ -15,8 +15,10 @@ class PomProject:
     builtins: 'PomProperties'
     managements: list['PomDependency']
     dependencies: list['PomDependency']
+    modules: list[str]
     # computed
     computed_properties: 'PomProperties'
+    initial_managements: 'PomMgts'
     computed_managements: 'PomMgts'
     computed_dependencies: 'PomDeps'
 
@@ -29,8 +31,11 @@ class PomProject:
     def key_ga(self):
         return f"{self.groupId}:{self.artifactId}"
 
+    def key_excl(self):
+        return f"{self.groupId}:{self.artifactId}"
+
     def __repr__(self):
-        return self.fullname()
+        return f"PomProject({self.fullname()})"
     
 
 class PomParent:
@@ -46,6 +51,9 @@ class PomParent:
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
+    def __repr__(self) -> str:
+        return f"PomParent({self.fullname()})"
+
 
 class PomProperty:
     """
@@ -56,16 +64,16 @@ class PomProperty:
     paths: list[PomProject]
 
     def __repr__(self) -> str:
-        return f"{self.name}={self.value}"
+        return f"PomProperty({self.name}={self.value})"
 
 
 class PomProperties(dict[str, PomProperty]):
     """
     Represents a Maven properties.
     """
-    def add(self, name: str, value: str, paths: list[PomProject] | None = None):
+    def addIfMissing(self, name: str, value: str, paths: list[PomProject] | None = None):
         """
-        Add a property value, only if not already exists.
+        Set a property value only if it does not already exists.
         """
         if name in self:
             return
@@ -73,13 +81,16 @@ class PomProperties(dict[str, PomProperty]):
 
     def set(self, name: str, value: str, paths: list[PomProject] | None = None):
         """
-        Add or Update a property value if already exists.
+        Set a property value even if it already exists.
         """
         prop = PomProperty()
         prop.name = name
         prop.value = value
         prop.paths = paths or []
         self[name] = prop
+    
+    def __repr__(self) -> str:
+        return f"PomProperties({len(self)})"
 
 
 class PomExclusion:
@@ -94,6 +105,9 @@ class PomExclusion:
 
     def key(self):
         return f"{self.groupId}:{self.artifactId}"
+    
+    def __repr__(self) -> str:
+        return f"PomExclusion({self.fullname()})"
 
 
 class PomDependency:
@@ -106,17 +120,39 @@ class PomDependency:
     scope: str
     type: str
     classifier: str
+    optional: str
     paths: list[PomProject]
     pathsVersion: list[PomProject]
+    pathsScope: list[PomProject]
+    pathsOptional: list[PomProject]
+    pathsExclusions: list[PomProject]
     exclusions: list[PomExclusion]
     # unused properties
     relativePath: str
+    # hidden properties
+    not_found: bool
 
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
-    def key_ga(self):
+    def fullname2(self):
+        return f"{self.groupId}:{self.artifactId}:{self.type}:{self.version}"
+
+    def key_excl(self):
         return f"{self.groupId}:{self.artifactId}"
+    
+    def key_gat(self):
+        return f"{self.groupId}:{self.artifactId}:{self.type}"
+    
+    def key_trace(self):
+        return f"{self.groupId}:{self.artifactId}"
+    
+    def copy(self) -> 'PomDependency':
+        return copy(self)
+    
+    def __repr__(self) -> str:
+        return f"PomDependency({self.groupId}:{self.artifactId}:{self.type}:{self.version})[{len(self.paths) if 'paths' in self.__dict__ else 0}]"
+
 
 PomInfos = PomProject | PomParent | PomDependency
 PomMgts = dict[str, PomDependency]
@@ -131,7 +167,7 @@ if __name__ == "__main__":
     project1.parent.groupId = "com.example1.parent"
     project2 = project1.clone()
     project2.groupId = "com.example2"
-    assert project2.parent is not None
+    assert project2.parent
     project2.parent.groupId = "com.example2.parent"
     assert project1.groupId == "com.example1"
     assert project2.groupId == "com.example2"

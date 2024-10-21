@@ -51,7 +51,6 @@ def read_pom(file: str) -> PomProject:
 
     # read properties
     pom.properties = PomProperties()
-    pom.computed_properties = PomProperties()
     properties = find(doc, 'properties')
     if properties is not None:
         for prop in properties.iterchildren():
@@ -87,31 +86,37 @@ def read_pom(file: str) -> PomProject:
     
     # read dependencyManagement
     pom.managements = []
-    pom.computed_managements = PomMgts()
     managements = find_all(doc, 'dependencyManagement/dependencies/dependency')
     for dep in managements:
         pom.managements.append(get_dependency(pom, dep))
 
     # read dependencies
     pom.dependencies = []
-    pom.computed_dependencies = PomDeps()
     dependencies = find_all(doc, 'dependencies/dependency')
     for dep in dependencies:
         pom.dependencies.append(get_dependency(pom, dep))
+    
+    # read modules
+    pom.modules = []
+    modules = find_all(doc, 'modules/module')
+    for module in modules:
+        pom.modules.append(module.text)
 
     # return the pom object
     return pom
 
 def get_dependency(pom: PomProject, dep) -> PomDependency:
-    unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier'])
+    unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier', 'optional'])
     dependency = PomDependency()
     dependency.groupId = find_text(dep, 'groupId')
     dependency.artifactId = find_text(dep, 'artifactId')
     dependency.version = find_text(dep, 'version')
     dependency.scope = find_text(dep, 'scope')
-    dependency.type = find_text(dep, 'type')
+    dependency.type = find_text(dep, 'type', 'jar')
     dependency.classifier = find_text(dep, 'classifier')
+    dependency.optional = find_text(dep, 'optional')
     dependency.relativePath = ''
+    dependency.not_found = False
     dependency.exclusions = []
     # read exclusions
     exclusions = find_all(dep, 'exclusions/exclusion')
@@ -132,10 +137,11 @@ def find_all(elem, tag: str):
     return elem.findall(POM + tag)
 
 
-def find_text(elem, tag: str, default: str = '') -> str:
+def find_text(elem, tag: str, default = '') -> str:
     tag = tag.replace("/", "/" + POM)
     elem = elem.find(POM + tag)
-    return elem.text if elem is not None and elem.text is not None else default
+    if elem is None or elem.text is None: return default
+    return elem.text
 
 
 def find_tags(elem, tag: str):
