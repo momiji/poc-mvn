@@ -5,6 +5,7 @@ parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--color', choices=['auto', 'never', 'always'], default='auto', help='Color output: auto, never, or always')
 parser.add_argument('-b', '--basic', action="store_true", help='For basic tree output')
 parser.add_argument('-s', '--sections', default='collect', help='Print only sections: project|proj, properties|props, managements|mgts, dependencies|deps, collect|coll, tree (comma separated)')
+parser.add_argument('-m', '--modules', help="Print only modules in format 'module,module,...'")
 parser.add_argument('-p', '--trace-poms', action="store_true", help='Trace poms')
 parser.add_argument('-d', '--trace-deps', help='Trace dependencies in format "groupId:artifactId,groupId:artifactId,..."')
 parser.add_argument('--trace-props', help='Trace properties in format "name,name,..."')
@@ -16,6 +17,7 @@ args = parser.parse_args()
 
 color = os.isatty(1) if args.color == 'auto' else True if args.color == 'always' else False
 sections = [ s.strip() for s in args.sections.split(',') ] if args.sections else None
+modules = [ m.strip() for m in args.modules.split(',') ] if args.modules else None
 
 # tracer
 trace = False
@@ -50,14 +52,16 @@ from pom_struct import PomProperties
 register_pom_locations(args.file)
 
 # load pom and resolve it
-def print_files(file, initialProps: PomProperties | None = None):
+def print_files(file, module = None):
     pom = load_pom_from_file(file)
     assert pom
     resolve_pom(pom, load_mgts = True, load_deps = True) #, initialProps = initialProps)
-    print_pom(pom, color = color, basic = args.basic, sections = sections)
+    if modules is None or module:
+        print_pom(pom, color = color, basic = args.basic, sections = sections)
 
     for module in pom.modules:
-        module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')
-        print_files(module_file, pom.computed_properties)
+        if modules is None or module in modules:
+            module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')
+            print_files(module_file, module)
 
 print_files(args.file)
