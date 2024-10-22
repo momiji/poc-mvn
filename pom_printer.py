@@ -25,11 +25,6 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         if section in SECTIONS_ALIAS:
             sections.append(SECTIONS_ALIAS[section])
     
-    # print separator
-    print("#" * indent)
-    print(f"# {pom.fullname2()} ".ljust(indent - 1, " ") + "#")
-    print("#" * indent)
-
     if 'project' in sections:
         print()
         print(f"Project: {c_name(pom.key_gap())}:{c_val(pom.version)}")
@@ -92,6 +87,8 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             for dep in dep_cols:
                 paths = dump_paths(dep.paths)
                 print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+                paths = dump_paths(dep.pathsVersion)
+                print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
 
         if print_tree:
             print()
