@@ -2,19 +2,6 @@ from pom_loader import load_pom_parents, resolve_value, load_pom_from_file, reso
 from pom_struct import PomProject, PomPaths, PomMgts, PomExclusion, PomProperties, PomDeps, PomDependency
 from pom_tracer import *
 
-# ALL_SCOPES = { '_name':'all', 'compile': 'compile', 'provided': 'provided', 'runtime': 'runtime', 'system': 'system', 'test': 'test', 'import': 'import', '': 'compile' }
-# ALL_SCOPES_KEYS = list(ALL_SCOPES.keys())
-
-# COMPILE_SCOPES = { '_name':'compile', 'compile': 'compile', 'provided': '?provided', 'runtime': '?runtime', 'system': '?system', '': 'compile' }
-# PROVIDED_SCOPES = { '_name':'provided', 'compile': '?provided', 'provided': 'provided', 'runtime': '?provided', 'system': '?system', '': 'provided' }
-# RUNTIME_SCOPES = { '_name':'runtime', 'compile': '?runtime', 'provided': '?runtime', 'runtime': 'runtime', 'system': '?system', '': 'runtime' }
-# TEST_SCOPES = { '_name':'test', 'compile': 'compile', 'provided': '?provided', 'runtime': '?runtime', 'test': 'test', 'system': '?system', '': 'compile', '*': 'test' }
-
-# NEW_SCOPES = {'compile': COMPILE_SCOPES, 'provided': PROVIDED_SCOPES, 'runtime': RUNTIME_SCOPES, 'test': TEST_SCOPES, 'system': None}
-
-# TRANSITIVE_SCOPES = ['compile', 'runtime']
-
-
 # Scopes dict (parent scope) -> dict (dependency scope) -> new scope = None if skip as scope is not allowed or starting with '-' if scope is not transitive
 # '?' means that the new scope is not yet defined to mimic maven behavior, and must be checked againt real samples
 SCOPES = {
@@ -82,7 +69,10 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     # load all dependencies
     if load_deps:
-        load_dependencies(pom, paths = paths, scope = scope, excls = excls, transitive_only = transitive_only, loadedDeps = loadedDeps)
+        solvers = []
+        solvers.extend(load_dependencies(pom, paths = paths, scope = scope, excls = excls, transitive_only = transitive_only, loadedDeps = loadedDeps))
+        for solver in solvers:
+            solver()
 
     if trace and TRACER: TRACER.exit("pom | end", pom.fullname())
 
@@ -299,6 +289,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
 
     # dependencies recursion
     dep_inits = new_initial_managements(pom.initial_managements, pom.computed_managements)
+    solvers = []
     for dep in deps2:
         # skip on non-supported types
         if dep.type in SKIP_TYPES2:
@@ -314,9 +305,17 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         dep_excls = excls | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
         # recursion
+        solvers.append(solver(pom, dep, dep_pom, paths, dep_inits, dep_excls, dep_scope, loadedDeps))
+    
+    return solvers
+
+
+def solver(pom: PomProject, dep: PomDependency, dep_pom: PomProject, paths: PomPaths, dep_inits: PomMgts, dep_excls: Exclusions, dep_scope: str, loadedDeps: dict[str, PomDependency]):
+    def fn():
         if TRACER and TRACER.trace_poms(): TRACER.trace("dep | resolve pom", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
         resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True, transitive_only = True, loadedDeps = loadedDeps)
         pom.computed_dependencies.extend(dep_pom.computed_dependencies)
+    return fn
 
 
 def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:
