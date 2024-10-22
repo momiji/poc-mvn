@@ -7,7 +7,6 @@ class Tracer:
         self.line = 0
         self._indent = 0
         self._poms = False
-        self._mgts = False
         self._ranges = False
         self._debug = False
         self._deps = []
@@ -31,10 +30,6 @@ class Tracer:
         self._poms = poms
         return self
 
-    def set_mgts(self, mgts):
-        self._mgts = mgts
-        return self
-    
     def set_ranges(self, ranges):
         self._ranges = ranges
         return self
@@ -47,7 +42,7 @@ class Tracer:
         return self._poms
 
     def trace_dep(self, ga) -> bool:
-        return self._mgts or ga in self._deps
+        return ga in self._deps
 
     def trace_prop(self, prop) -> bool:
         return prop in self._props

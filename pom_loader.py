@@ -18,7 +18,6 @@ def load_pom_from_file(file: str, allow_missing = False) -> PomProject | None:
         return cache_poms[file].clone()
     
     if allow_missing and not os.path.exists(file):
-        print(file)
         return None
     
     pom = read_pom(file)
