@@ -69,10 +69,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     # load all dependencies
     if load_deps:
-        solvers = []
-        solvers.extend(load_dependencies(pom, paths = paths, scope = scope, excls = excls, transitive_only = transitive_only, loadedDeps = loadedDeps))
-        for solver in solvers:
-            solver()
+        load_dependencies(pom, paths = paths, scope = scope, excls = excls, transitive_only = transitive_only, loadedDeps = loadedDeps)
 
     if trace and TRACER: TRACER.exit("pom | end", pom.fullname())
 
@@ -305,17 +302,9 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         dep_excls = excls | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
         # recursion
-        solvers.append(solver(pom, dep, dep_pom, paths, dep_inits, dep_excls, dep_scope, loadedDeps))
-    
-    return solvers
-
-
-def solver(pom: PomProject, dep: PomDependency, dep_pom: PomProject, paths: PomPaths, dep_inits: PomMgts, dep_excls: Exclusions, dep_scope: str, loadedDeps: dict[str, PomDependency]):
-    def fn():
         if TRACER and TRACER.trace_poms(): TRACER.trace("dep | resolve pom", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
         resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True, transitive_only = True, loadedDeps = loadedDeps)
         pom.computed_dependencies.extend(dep_pom.computed_dependencies)
-    return fn
 
 
 def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:
