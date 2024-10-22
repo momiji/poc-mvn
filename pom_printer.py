@@ -27,12 +27,12 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
     
     # print separator
     print("#" * indent)
-    print(f"# {pom.fullname()} ".ljust(indent - 1, " ") + "#")
+    print(f"# {pom.fullname2()} ".ljust(indent - 1, " ") + "#")
     print("#" * indent)
 
     if 'project' in sections:
         print()
-        print(f"Project: {c_name(pom.key_ga())}:{c_val(pom.version)}")
+        print(f"Project: {c_name(pom.key_gap())}:{c_val(pom.version)}")
 
     if 'properties' in sections:
         print()
@@ -61,6 +61,7 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         dep_col = PomDependency()
         dep_col_order = 0
         for dep in sorted(pom.computed_dependencies, key=lambda d: (d.groupId, d.artifactId)):
+            if dep.type == 'parent': continue
             if previous == '' or previous != dep.key_gat():
                 previous = dep.key_gat()
                 dep_col = PomDependency()
@@ -104,6 +105,8 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             dep_elems = dep_cols[:]
             dep_root = (pom, [])
             dep_nodes = { pom.fullname(): dep_root }
+
+            # create graph
             for dep in dep_elems:
                 parents = dep_parents[dep.fullname()]
                 found = False
@@ -115,7 +118,20 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
                         break
                 if not found:
                     dep_elems.append(dep)
+            
+            # remove 'parent' types
+            def remove_type(node, parent):
+                dep = node[0]
+                childs = node[1]
+                if dep.type == 'parent' and parent is not None:
+                    parent.extend(childs)
+                    del dep_nodes[dep.fullname()]
+                else:
+                    parent = childs
+                for child in childs:
+                    remove_type(child, parent)
 
+            # print tree
             print(f"Tree Dependencies ({len(dep_nodes) - 1}):")
             elbow = "\\- " if basic else "└─ "
             pipe = "|  " if basic else "│  "
@@ -153,7 +169,7 @@ def dump_paths(paths: list[PomProject]):
     """
     if len(paths) == 1:
         return '.'
-    return ' -> '.join([p.fullname() for p in paths[1:]])
+    return ' -> '.join([p.fullname2() for p in paths[1:]])
 
 
 if __name__ == '__main__':

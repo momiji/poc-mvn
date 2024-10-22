@@ -1,14 +1,11 @@
 from pom_struct import PomProject, PomParent, PomDependency, PomExclusion, PomProperties, PomMgts, PomDeps
 from lxml import etree
 
-POM_NAMESPACE = "http://maven.apache.org/POM/4.0.0"
-POM = "{%s}" % (POM_NAMESPACE,)
-POM_NAMESPACE_LEN = len(POM)
-
 POM_PARSER = etree.XMLParser(
-    recover=True,
-    remove_comments=True,
-    remove_pis=True,
+    recover = True,
+    remove_comments = True,
+    remove_pis = True,
+    ns_clean = True,
 )
 
 
@@ -26,6 +23,8 @@ def read_pom(file: str) -> PomProject:
     with open(file, 'rb') as f:
         xml = f.read()
     doc = etree.fromstring(xml, parser=POM_PARSER)
+    ns = doc.nsmap.get(None, '')
+    ns = '{%s}' % ns if ns else ''
 
     # read project
     pom.groupId = find_text(doc, 'groupId')
@@ -54,12 +53,12 @@ def read_pom(file: str) -> PomProject:
     properties = find(doc, 'properties')
     if properties is not None:
         for prop in properties.iterchildren():
-            if prop.tag == POM + 'property':
+            if prop.tag == ns + 'property':
                 unexpected_tags(pom, prop, '*', ['name','value'])
                 name = prop.get('name')
                 value = prop.get('value', '')
             else:
-                name = prop.tag[POM_NAMESPACE_LEN:]
+                name = prop.tag[len(ns):]
                 value = prop.text or ''
             pom.properties.set(name, value)
     
@@ -128,25 +127,33 @@ def get_dependency(pom: PomProject, dep) -> PomDependency:
     return dependency
 
 def find(elem, tag: str):
-    tag = tag.replace("/", "/" + POM)
-    return elem.find(POM + tag)
+    ns = elem.nsmap.get(None, '')
+    ns = '{%s}' % ns if ns else ''
+    tag = tag.replace("/", "/" + ns)
+    return elem.find(ns + tag)
 
 
 def find_all(elem, tag: str):
-    tag = tag.replace("/", "/" + POM)
-    return elem.findall(POM + tag)
+    ns = elem.nsmap.get(None, '')
+    ns = '{%s}' % ns if ns else ''
+    tag = tag.replace("/", "/" + ns)
+    return elem.findall(ns + tag)
 
 
 def find_text(elem, tag: str, default = '') -> str:
-    tag = tag.replace("/", "/" + POM)
-    elem = elem.find(POM + tag)
+    ns = elem.nsmap.get(None, '')
+    ns = '{%s}' % ns if ns else ''
+    tag = tag.replace("/", "/" + ns)
+    elem = elem.find(ns + tag)
     if elem is None or elem.text is None: return default
     return elem.text
 
 
 def find_tags(elem, tag: str):
-    tag = tag.replace("/", "/" + POM)
-    return [ e.tag.replace(POM,"") for e in elem.findall(POM + tag) ]
+    ns = elem.nsmap.get(None, '')
+    ns = '{%s}' % ns if ns else ''
+    tag = tag.replace("/", "/" + ns)
+    return [ e.tag.replace(ns,"") for e in elem.findall(ns + tag) ]
 
 
 def unexpected_tags(pom: PomProject, elem, tag: str, allowed: list):
@@ -160,5 +167,7 @@ if __name__ == "__main__":
     # verify reading pom.xml
     pom1 = read_pom('myartifact/pom.xml')
     assert pom1.fullname() == "mygroup:myartifact:${revision}"
+    pom2 = read_pom('commons-configuration-1.6.pom')
+    assert pom2.fullname() == "commons-configuration:commons-configuration:1.6"
     # passed
     print("PASSED")

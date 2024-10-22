@@ -6,23 +6,23 @@ from packaging.version import Version
 
 M2_HOME = os.path.join(pathlib.Path.home(), '.m2/repository')
 
-cache: dict[str, PomProject] = {}
-locations: dict[str, str] = {}
+cache_poms: dict[str, PomProject] = {} # file -> pom
+cache_deps: dict[str, str] = {}        # dep -> file
 
 def load_pom_from_file(file: str, allow_missing = False) -> PomProject | None:
     """
     Load a pom file from its path.
     """
-    if TRACER: TRACER.trace(f"load pom {file}")
     file = os.path.abspath(file)
-    if file in cache:
-        return cache[file].clone()
+    if file in cache_poms:
+        return cache_poms[file].clone()
     
     if allow_missing and not os.path.exists(file):
+        print(file)
         return None
     
     pom = read_pom(file)
-    cache[file] = pom
+    cache_poms[file] = pom
 
     return pom.clone()
 
@@ -31,18 +31,18 @@ def load_pom_from_dependency(dependency: PomParent | PomDependency, base: str, a
     """
     Load a pom file from its dependency groupId, artifactId and version.
     """
-    if TRACER: TRACER.trace(f"load pom {dependency.fullname()} from {base}")
     file = find_pom_location(dependency, base)
-    return load_pom_from_file(file, allow_missing = allow_missing)
+    pom = load_pom_from_file(file, allow_missing = allow_missing)
+    if pom: cache_deps[pom.fullname()] = file
+    return pom
 
 
 def find_pom_location(dependency: PomParent | PomDependency, base: str) -> str:
     """
     Find the location of the pom file of a dependency.
     """
-    if TRACER: TRACER.trace(f"find pom {dependency.fullname()} from {base}")
-    if dependency.fullname() in locations:
-        return locations[dependency.fullname()]
+    if dependency.fullname() in cache_deps:
+        return cache_deps[dependency.fullname()]
     # try to load relativePath, maven silently ignore missing files
     if dependency.relativePath != '' and not base.startswith(M2_HOME):
         file = os.path.join(os.path.dirname(base), dependency.relativePath)
@@ -58,7 +58,6 @@ def find_version(dependency: PomDependency) -> str:
     """
     Find the version of a dependency.
     """
-    if TRACER: TRACER.trace(f"find version {dependency.fullname()}")
     if dependency.version[:1] != '[':
         return dependency.version
     # get minimal version and maximal version
@@ -80,19 +79,18 @@ def find_version(dependency: PomDependency) -> str:
             if highest is None or version > highest:
                 highest = version
     # return highest version
-    if TRACER2 and TRACER2.trace_range(dependency.key_trace()): TRACER2.trace("ver | range", dependency.fullname(), 'version', highest)
+    if TRACER and TRACER.trace_range(dependency.key_trace()): TRACER.trace("ver | range", dependency.fullname(), 'version', highest)
     if highest is not None:
         return str(highest)
     raise Exception(f"Artifact {dependency.fullname()} not found in {dir}")
 
 
-def register_pom_location(file: str, initialProps: PomProperties | None = None):
+def register_pom_locations(file: str, initialProps: PomProperties | None = None):
     """
     Register the location of a pom file, so that it uses this file when searched by dependency.
 
     Modules are also registered.
     """
-    if TRACER: TRACER.trace(f"register pom {file}")
     if initialProps is None: initialProps = PomProperties()
 
     file = os.path.abspath(file)
@@ -105,16 +103,14 @@ def register_pom_location(file: str, initialProps: PomProperties | None = None):
 
     # load parents to resolve properties, but not in the pom as we don't provide props = pom.computed_properties
     # the only change on the pom should be groupId, artifactId and version
-    # allowing to cache it with the initial properties
+    # allowing to overwrite cache with a correct pom
     load_pom_parents(pom)
-    locations[pom.fullname()] = file
-    cache[file] = pom
+    cache_deps[pom.fullname()] = pom.file
+    cache_poms[file] = pom
 
     for module in pom.modules:
-        if TRACER: TRACER.enter()
         module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')
-        register_pom_location(module_file, initialProps = pom.properties)
-        if TRACER: TRACER.exit()
+        register_pom_locations(module_file, initialProps = pom.properties)
 
 
 def load_pom_parents(pom: PomProject, xinitialProps: PomProperties | None = None, props: PomProperties | None = None, paths: PomPaths | None = None):
@@ -124,7 +120,6 @@ def load_pom_parents(pom: PomProject, xinitialProps: PomProperties | None = None
 
     It returns all poms, from root to the top parent one.
     """
-    if TRACER: TRACER.trace(f"load parents {pom.fullname()}")
     if xinitialProps is None: xinitialProps = PomProperties()
     if props is None: props = PomProperties()
     if paths is None: paths = PomPaths()
@@ -141,13 +136,11 @@ def load_pom_parents(pom: PomProject, xinitialProps: PomProperties | None = None
 
     # resolve properties to find parent
     if pom.parent is not None:
-        if TRACER: TRACER.enter()
         resolve_artifact(pom.parent, props, pom.builtins)
         parent_pom = load_pom_from_dependency(pom.parent, pom.file)
         assert parent_pom
         pom.parent.pom = parent_pom
         load_pom_parents(pom.parent.pom, props = props, paths = paths)
-        if TRACER: TRACER.exit()
 
     # resolve properties to get fullname
     resolve_artifact(pom, props, pom.builtins)
@@ -187,7 +180,7 @@ if __name__ == "__main__":
     pom1 = load_pom_from_file('myartifact/pom.xml')
     assert pom1 and pom1.fullname() == 'mygroup:myartifact:${revision}'
     # register pom
-    register_pom_location('myartifact/pom.xml')
+    register_pom_locations('myartifact/pom.xml')
     # load pom from dependency
     dep1 = PomDependency()
     dep1.groupId = 'mygroup'

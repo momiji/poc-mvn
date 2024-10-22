@@ -4,40 +4,6 @@ TRACER: 'Tracer | None' = None
 
 class Tracer:
     def __init__(self):
-        self._traces = []
-        # top only prperties
-        self._current = self
-        self._paths = []
-
-    def trace(self, text):
-        self._current._traces.append(text)
-
-    def trace_parent(self, text):
-        self._paths[-1]._traces.append(text)
-
-    def enter(self, text = None):
-        if text:
-            self.trace(format)
-        t = Tracer()
-        self._paths.append(self._current)
-        self._current = t
-    
-    def exit(self, text = None):
-        if text:
-            self.trace(format)
-        self._current = self._paths.pop()
-
-    def show_traces(self, indent = 0):
-        indent = 0
-        for p in self._paths + [self._current]:
-            for t in p._traces:
-                print(f"{'  ' * indent} {t}")
-            indent += 1
-
-TRACER2: 'Tracer2 | None' = None
-
-class Tracer2:
-    def __init__(self):
         self.line = 0
         self._indent = 0
         self._poms = False

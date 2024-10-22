@@ -28,8 +28,14 @@ class PomProject:
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
+    def fullname2(self):
+        return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}"
+
     def key_ga(self):
         return f"{self.groupId}:{self.artifactId}"
+
+    def key_gap(self):
+        return f"{self.groupId}:{self.artifactId}:{self.packaging}"
 
     def key_excl(self):
         return f"{self.groupId}:{self.artifactId}"
@@ -122,15 +128,16 @@ class PomDependency:
     classifier: str
     optional: str
     paths: list[PomProject]
-    pathsVersion: list[PomProject]
-    pathsScope: list[PomProject]
-    pathsOptional: list[PomProject]
-    pathsExclusions: list[PomProject]
     exclusions: list[PomExclusion]
     # unused properties
     relativePath: str
     # hidden properties
     not_found: bool
+    # paths for properties
+    pathsVersion: list[PomProject]
+    pathsScope: list[PomProject]
+    pathsOptional: list[PomProject]
+    pathsExclusions: list[PomProject]
 
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
