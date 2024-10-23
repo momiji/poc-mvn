@@ -20,7 +20,8 @@ class PomProject:
     computed_properties: 'PomProperties'
     initial_managements: 'PomMgts'
     computed_managements: 'PomMgts'
-    computed_dependencies: 'PomDeps'
+    added_dependencies: 'PomDeps'
+    computed_dependencies: 'PomMgts'
 
     def clone(self) -> 'PomProject':
         return deepcopy(self)

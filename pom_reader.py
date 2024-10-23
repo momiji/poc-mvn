@@ -1,4 +1,4 @@
-from pom_struct import PomProject, PomParent, PomDependency, PomExclusion, PomProperties, PomMgts, PomDeps
+from pom_struct import PomProject, PomParent, PomDependency, PomExclusion, PomProperties
 from lxml import etree
 
 POM_PARSER = etree.XMLParser(

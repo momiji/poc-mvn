@@ -1,6 +1,6 @@
 import os
 from pom_loader import load_pom_from_file
-from pom_solver import resolve_pom, ORDERED_SCOPES
+from pom_solver import resolve_pom
 from pom_struct import PomProject, PomDependency
 
 SECTIONS = ['project', 'properties', 'managements', 'dependencies', 'collect', 'tree']
@@ -26,138 +26,121 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             sections.append(SECTIONS_ALIAS[section])
     
     if 'project' in sections:
-        print()
         print(f"Project: {c_name(pom.key_gap())}:{c_val(pom.version)}")
+        print()
 
     if 'properties' in sections:
-        print()
         print(f"Properties ({len(pom.computed_properties)}):")
+        print()
         for prop in sorted(pom.computed_properties.values(), key=lambda p: p.name):
             paths = dump_paths(prop.paths)
             print_comment(indent2, f"    {c_name(prop.name)}: {c_val(prop.value)}", paths)
+        print()
 
     if 'managements' in sections:
-        print()
         print(f"Dependency Management ({len(pom.computed_managements)}):")
         for dep in sorted(pom.computed_managements.values(), key=lambda d: (d.groupId, d.artifactId, d.scope)):
             paths = dump_paths(dep.paths)
             print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}", paths)
+        print()
 
-    if 'dependencies' in sections or 'collect' in sections or 'tree' in sections:
-        print_deps = 'dependencies' in sections
-        print_coll = 'collect' in sections
-        print_tree = 'tree' in sections
-        if print_deps:
+    if 'dependencies' in sections:
+        print(f"All non-unique Dependencies ({len(pom.added_dependencies)}):")
+        print()
+        for dep in sorted(pom.added_dependencies, key=lambda d: (d.groupId, d.artifactId)):
+            if dep.type == 'parent': continue
+            paths = dump_paths(dep.paths)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+            paths = dump_paths(dep.pathsVersion)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+            paths = dump_paths(dep.pathsScope)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'scp: ')
+            paths = dump_paths(dep.pathsExclusions)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'exc: ')
             print()
-            print(f"Dependencies ({len(pom.computed_dependencies)}):")
-        previous = ''
-        dep_cols = []
-        dep_col = PomDependency()
-        dep_col_order = 0
-        for dep in sorted(pom.computed_dependencies, key=lambda d: (d.groupId, d.artifactId)):
-            if previous == '' or previous != dep.key_gat():
-                previous = dep.key_gat()
-                dep_col = PomDependency()
-                dep_col.groupId = dep.groupId
-                dep_col.artifactId = dep.artifactId
-                dep_col.version = dep.version
-                dep_col.type = dep.type
-                dep_col.scope = dep.scope
-                dep_col.paths = dep.paths
-                dep_col.pathsVersion = dep.pathsVersion
-                dep_col.not_found = dep.not_found
-                dep_cols.append(dep_col)
-                dep_col_order = ORDERED_SCOPES.index(dep.scope)
 
-                if print_deps:
-                    print_comment(indent1, f"    {c_name(dep.key_gat())}")
+    if 'collect' in sections:
+        print(f"Collected Dependencies ({len(pom.computed_dependencies)}):")
+        print()
+        for dep in sorted(pom.computed_dependencies.values(), key=lambda d: (d.groupId, d.artifactId)):
+            if dep.type == 'parent': continue
+            paths = dump_paths(dep.paths)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+            paths = dump_paths(dep.pathsVersion)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+            paths = dump_paths(dep.pathsScope)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'scp: ')
+            paths = dump_paths(dep.pathsExclusions)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'exc: ')
+            print()
+
+    if 'tree' in sections:
+        dep_elems: list[PomDependency] = list(pom.computed_dependencies.values())
+        dep_pom = PomDependency()
+        dep_pom.groupId = pom.groupId
+        dep_pom.artifactId = pom.artifactId
+        dep_pom.version = pom.version
+        dep_root = (dep_pom, [])
+        dep_nodes = { pom.key_excl(): dep_root }
+        dep_parents = {}
+        for dep in sorted(dep_elems, key=lambda d: (d.groupId, d.artifactId)):
+            if dep.key_excl() not in dep_parents:
+                dep_parents[dep.key_excl()] = [ dep.paths[-1].key_excl() ]
             else:
-                dep_order = ORDERED_SCOPES.index(dep.scope)
-                if dep_order < dep_col_order:
-                    dep_col.scope = dep.scope
+                dep_parents[dep.key_excl()].append(dep.paths[-1].key_excl())
 
-            if print_deps:
-                paths = dump_paths(dep.paths)
-                print_comment(indent1, f"        {c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+        # create graph
+        for dep in dep_elems:
+            parents = dep_parents[dep.key_excl()]
+            found = False
+            for parent in parents:
+                if parent in dep_nodes:
+                    dep_nodes[parent][1].append(dep)
+                    dep_nodes[dep.key_excl()] = (dep, [])
+                    found = True
+                    break
+            if not found:
+                dep_elems.append(dep)
+                print(f"not found {dep.key_excl()}")
+
+        # remove 'parent' types
+        def remove_parents(node, parent):
+            dep = node[0]
+            childs = node[1]
+            if parent is not None and dep.type == 'parent':
+                parent[1].extend(childs)
+                childs = []
+                del dep_nodes[dep.key_excl()]
+            else:
+                parent = node
+            for child in childs:
+                node = dep_nodes[child.key_excl()]
+                remove_parents(node, parent)
+        remove_parents(dep_root, None)
+
+        # print tree
+        print(f"Tree Dependencies ({len(dep_nodes) - 1}):")
+        print()
+        elbow = "\\- " if basic else "└─ "
+        pipe = "|  " if basic else "│  "
+        tee = "+- " if basic else "├─ "
+        blank = "   "
+        def tree_loop(start, header=''):
+            childs = dep_nodes[start.key_excl()][1]
+            childs = [ d for d in childs if d.key_excl() in dep_nodes ]
+            size = len(childs)
+            for i, node in enumerate(childs):
+                h = header + elbow if i + 1 == size else header + tee
+                dep = node
                 paths = dump_paths(dep.pathsVersion)
-                print_comment(indent, "", paths, 'ver: ')
-        if print_coll:
-            print()
-            print(f"Collected Dependencies ({len(dep_cols)}):")
-            for dep in dep_cols:
-                paths = dump_paths(dep.paths)
-                print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
-                paths = dump_paths(dep.pathsVersion)
-                print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+                print_comment(indent2, f"    {h}{c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+                h = header + blank if i + 1 == size else header + pipe
+                tree_loop(dep, h)
 
-        if print_tree:
-            print()
-            dep_elems = dep_cols[:]
-            dep_root = (pom, [])
-            dep_nodes = { pom.fullname(): dep_root }
-            dep_parents = {}
-            for dep in sorted(pom.computed_dependencies, key=lambda d: (d.groupId, d.artifactId)):
-                if dep.fullname() not in dep_parents:
-                    dep_parents[dep.fullname()] = [ dep.paths[-1].fullname() ]
-                else:
-                    dep_parents[dep.fullname()].append(dep.paths[-1].fullname())
+        print_comment(indent2, f"    {c_name(pom.key_ga())}:{c_val(pom.version)}")
+        tree_loop(pom)
 
-            # create graph
-            for dep in dep_elems:
-                parents = dep_parents[dep.fullname()]
-                found = False
-                for parent in parents:
-                    if parent in dep_nodes:
-                        dep_nodes[parent][1].append(dep)
-                        dep_nodes[dep.fullname()] = (dep, [])
-                        found = True
-                        break
-                if not found:
-                    dep_elems.append(dep)
-
-            # remove 'parent' types
-            # def remove_parents(node, parent):
-            #     print('node', node)
-            #     dep = node[0]
-            #     print('dep', dep)
-            #     childs = node[1]
-            #     print('childs', childs)
-            #     if parent is not None and dep.type == 'parent':
-            #         print('parent is', parent)
-            #         parent.extend(childs)
-            #         childs = []
-            #         del dep_nodes[dep.fullname()]
-            #     else:
-            #         parent = childs
-            #     for child in childs:
-            #         print('child is', child)
-            #         child = dep_nodes[child.fullname()]
-            #         print('child is', child)
-            #         remove_parents(child, parent)
-            # remove_parents(dep_root, None)
-
-            # print tree
-            print(f"Tree Dependencies ({len(dep_nodes) - 1}):")
-            elbow = "\\- " if basic else "└─ "
-            pipe = "|  " if basic else "│  "
-            tee = "+- " if basic else "├─ "
-            blank = "   "
-            def tree_loop(start, header=''):
-                childs = dep_nodes[start][1]
-                size = len(childs)
-                for i, node in enumerate(childs):
-                    h = header + elbow if i + 1 == size else header + tee
-                    dep = node
-                    paths = dump_paths(dep.pathsVersion)
-                    print_comment(indent2, f"    {h}{c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
-                    h = header + blank if i + 1 == size else header + pipe
-                    tree_loop(dep.fullname(), h)
-
-            print_comment(indent2, f"    {c_name(pom.key_ga())}:{c_val(pom.version)}")
-            tree_loop(pom.fullname())
-    
-    # end
-    print()
+        print()
 
 
 def cname(name: str) -> str:

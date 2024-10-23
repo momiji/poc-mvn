@@ -1,4 +1,4 @@
-from pom_loader import load_pom_parents, resolve_value, load_pom_from_file, resolve_artifact, load_pom_from_dependency
+from pom_loader import load_pom_parents, resolve_value, load_pom_from_file, resolve_artifact, load_pom_from_dependency, resolve_version
 from pom_struct import PomProject, PomPaths, PomMgts, PomExclusion, PomProperties, PomDeps, PomDependency
 from pom_tracer import *
 
@@ -26,7 +26,7 @@ SKIP_TYPES2 = [ 'pom' ]
 Scopes = dict[str, str]
 Exclusions = dict[str, PomExclusion]
 
-def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: PomMgts | None = None, computeMgts: PomMgts | None = None, excls: Exclusions | None = None, scope = ALL_SCOPES, load_mgts = False, load_deps = False, transitive_only = False, directDepth = 0, loadedDeps: dict[str, PomDependency] | None = None):
+def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: PomMgts | None = None, computeMgts: PomMgts | None = None, excls: Exclusions | None = None, scope = ALL_SCOPES, load_mgts = False, load_deps = False):
     """
     Resolve all dependencies a pom project.
     """
@@ -34,7 +34,6 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
     if initialMgts is None: initialMgts = PomMgts()
     if computeMgts is None: computeMgts = PomMgts()
     if excls is None: excls = Exclusions()
-    if loadedDeps is None: loadedDeps = {}
 
     trace = TRACER and TRACER.trace_poms() and TRACER.enter("pom | start", pom.fullname(), 'scope', scope)
 
@@ -51,7 +50,9 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
     pom.computed_managements = computeMgts
 
     # dependencies that are computed from dependencyManagement
-    pom.computed_dependencies = PomDeps()
+    pom.added_dependencies = PomDeps()
+    if len(paths) == 0:
+        pom.computed_dependencies = PomMgts()
 
     # load all pom parents to resolve all properties
     load_pom_parents(pom, paths = paths, props = pom.computed_properties)
@@ -69,7 +70,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     # load all dependencies
     if load_deps:
-        load_dependencies(pom, paths = paths, scope = scope, excls = excls, transitive_only = transitive_only, loadedDeps = loadedDeps)
+        load_dependencies(pom, paths = paths, scope = scope, excls = excls)
 
     if trace and TRACER: TRACER.exit("pom | end", pom.fullname())
 
@@ -161,7 +162,6 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
     """
     if paths is None: paths = PomPaths()
     if excls is None: excls = Exclusions()
-    if loadedDeps is None: loadedDeps = {}
 
     paths = paths + [ pom ]
     transitive_only = len(paths) > 1
@@ -181,7 +181,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         dep_pom.optional = 'false'
         dep_pom.paths = paths
         dep_pom.exclusions = []
-        dep_pom.relativePath = ''
+        dep_pom.relativePath = pom.parent.relativePath
         dep_pom.not_found = False
         dep_pom.pathsVersion = paths
         dep_pom.pathsScope = paths
@@ -195,7 +195,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
     # scan dependencies to fix and skip
     for dep in deps1:
         trace = TRACER and TRACER.trace_dep(dep.key_trace()) and TRACER.trace2("dep | adding", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'paths', dump_paths(paths))
-        # resolve artifact'
+        # resolve artifact
         resolve_artifact(dep, pom.computed_properties, pom.builtins)
         if trace and TRACER: TRACER.trace2("dep | - resolv", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
         # skip exclusions
@@ -215,6 +215,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         if trace and TRACER: TRACER.trace2("dep | - applied", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
         # resolve artifact
         resolve_artifact(dep, pom.computed_properties, pom.builtins)
+        dep.version = resolve_version(dep)
         if dep.optional == '': dep.optional = 'false'
         if dep.optional not in ['true', 'false']:
             raise Exception(f"Invalid optional {dep.optional} found in dependency {dep.fullname()} of pom {pom.fullname()}")
@@ -238,55 +239,56 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         # update scope after transitive checks, to keep test -> compile before compile is converted to test
         dep.scope = new_scope
         # skip already loaded
-        if dep.key_excl() in loadedDeps:
-            loaded = loadedDeps[dep.key_excl()]
+        skip = False
+        if dep.key_excl() in pom.computed_dependencies:
+            loaded = pom.computed_dependencies[dep.key_excl()]
             # can skip if same scope
             if PRIORITY_SCOPES.index(dep.scope) == PRIORITY_SCOPES.index(loaded.scope):
                 if len(paths) >= len(loaded.paths):
                     if trace and TRACER: TRACER.trace2("dep | - skip (already loaded)", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
-                    continue
+                    skip = True
             # can skip if new scope is less important
             elif PRIORITY_SCOPES.index(dep.scope) >= PRIORITY_SCOPES.index(loaded.scope):
                     if trace and TRACER: TRACER.trace2("dep | - skip (already loaded)", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
-                    continue
+                    skip = True
             # need to change loaded
         # update loaded deps
-        if dep.key_excl() in loadedDeps:
-            # keep the one with the shortest path
-            loaded = loadedDeps[dep.key_excl()]
-            fixed = False
-            # keep the highest scope as it is used later to skip dependencies
-            if PRIORITY_SCOPES.index(dep.scope) < PRIORITY_SCOPES.index(loaded.scope):
-                loaded.scope = dep.scope
-                fixed = True
-            # overwrite all other properties, just updating loadedDeps is not enough
-            # as dep is already added to some computed_dependencies
-            if len(paths) < len(loaded.paths):
-                loaded.version = dep.version
-                loaded.type = dep.type
-                loaded.classifier = dep.classifier
-                loaded.optional = dep.optional
-                loaded.paths = dep.paths
-                loaded.exclusions = dep.exclusions
-                loaded.relativePath = dep.relativePath
-                loaded.not_found = dep.not_found
-                loaded.pathsVersion = dep.pathsVersion
-                loaded.pathsScope = dep.pathsScope
-                loaded.pathsOptional = dep.pathsOptional
-                loaded.pathsExclusions = dep.pathsExclusions
-                fixed = True
-            # trace change
-            if trace and TRACER and fixed: TRACER.trace2("dep | - loaded updated", loaded.key_gat(), 'version', loaded.version, 'scope', loaded.scope, 'optional', loaded.optional, 'paths', dump_paths(loaded.paths))
-        else:
-            loadedDeps[dep.key_excl()] = dep
+        if not skip:
+            if dep.key_excl() in pom.computed_dependencies:
+                # keep the one with the shortest path
+                loaded = pom.computed_dependencies[dep.key_excl()]
+                fixed = False
+                # always keep the highest scope as it is used later to skip dependencies
+                if PRIORITY_SCOPES.index(dep.scope) < PRIORITY_SCOPES.index(loaded.scope):
+                    loaded.scope = dep.scope
+                    fixed = True
+                # overwrite all other properties, just updating loadedDeps as it is a copy
+                if len(paths) < len(loaded.paths):
+                    loaded.version = dep.version
+                    loaded.type = dep.type
+                    loaded.classifier = dep.classifier
+                    loaded.optional = dep.optional
+                    loaded.paths = dep.paths
+                    loaded.exclusions = dep.exclusions
+                    loaded.relativePath = dep.relativePath
+                    loaded.not_found = dep.not_found
+                    loaded.pathsVersion = dep.pathsVersion
+                    loaded.pathsScope = dep.pathsScope
+                    loaded.pathsOptional = dep.pathsOptional
+                    loaded.pathsExclusions = dep.pathsExclusions
+                    fixed = True
+                # trace change
+                if trace and TRACER and fixed: TRACER.trace2("dep | - loaded updated", loaded.key_gat(), 'version', loaded.version, 'scope', loaded.scope, 'optional', loaded.optional, 'paths', dump_paths(loaded.paths))
+            else:
+                pom.computed_dependencies[dep.key_excl()] = dep.copy()
         # add to computed dependencies
-        pom.computed_dependencies.append(dep)
-        if trace and TRACER: TRACER.trace("dep | import", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional, 'paths', dump_paths(paths))
-        deps2.append(dep)
+        pom.added_dependencies.append(dep)
+        if not skip:
+            if trace and TRACER: TRACER.trace("dep | import", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional, 'paths', dump_paths(paths))
+            deps2.append(dep)
 
     # dependencies recursion
     dep_inits = new_initial_managements(pom.initial_managements, pom.computed_managements)
-    solvers = []
     for dep in deps2:
         # skip on non-supported types
         if dep.type in SKIP_TYPES2:
@@ -299,12 +301,13 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
             dep.not_found = True
             continue
         # build new mgts, excls and scopes to initialize recursion
+        dep_pom.computed_dependencies = pom.computed_dependencies
         dep_excls = excls | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
         # recursion
         if TRACER and TRACER.trace_poms(): TRACER.trace("dep | resolve pom", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
-        resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True, transitive_only = True, loadedDeps = loadedDeps)
-        pom.computed_dependencies.extend(dep_pom.computed_dependencies)
+        resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True)
+        pom.added_dependencies.extend(dep_pom.added_dependencies)
 
 
 def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:

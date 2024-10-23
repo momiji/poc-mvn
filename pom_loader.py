@@ -48,14 +48,14 @@ def find_pom_location(dependency: PomParent | PomDependency, base: str) -> str:
         if os.path.exists(file):
             return file
     if isinstance(dependency, PomDependency) and dependency.version[:1] == '[':
-        dependency.version = find_version(dependency)
+        dependency.version = resolve_version(dependency)
     file = os.path.join(M2_HOME, dependency.groupId.replace(".", "/"), dependency.artifactId, dependency.version, f"{dependency.artifactId}-{dependency.version}.pom")
     return file
 
 
-def find_version(dependency: PomDependency) -> str:
+def resolve_version(dependency: PomDependency) -> str:
     """
-    Find the version of a dependency.
+    Find the version of a dependency, or return original version.
     """
     if dependency.version[:1] != '[':
         return dependency.version
@@ -68,7 +68,7 @@ def find_version(dependency: PomDependency) -> str:
     # list all folders in the repository
     dir = os.path.join(M2_HOME, dependency.groupId.replace(".", "/"), dependency.artifactId)
     if not os.path.exists(dir):
-        raise Exception(f"Artifact {dependency.fullname()} not found in {dir}")
+        return dependency.version
     versions = [ name for name in os.listdir(dir) if os.path.isdir(os.path.join(dir, name)) ]
     # filter versions
     highest = None
@@ -79,9 +79,7 @@ def find_version(dependency: PomDependency) -> str:
                 highest = version
     # return highest version
     if TRACER and TRACER.trace_range(dependency.key_trace()): TRACER.trace("ver | range", dependency.fullname(), 'version', highest)
-    if highest is not None:
-        return str(highest)
-    raise Exception(f"Artifact {dependency.fullname()} not found in {dir}")
+    return str(highest) if highest is not None else dependency.version
 
 
 def register_pom_locations(file: str, initialProps: PomProperties | None = None):
@@ -196,14 +194,14 @@ if __name__ == "__main__":
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[3.0,)'
-    find_version(dep1)
+    resolve_version(dep1)
     dep1 = PomDependency()
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[3.0,4)'
-    find_version(dep1)
+    resolve_version(dep1)
     dep1 = PomDependency()
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[,3.5)'
-    find_version(dep1)
+    resolve_version(dep1)

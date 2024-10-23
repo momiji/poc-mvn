@@ -24,7 +24,7 @@ width = args.width
 # tracer
 import pom_tracer
 trace = False
-tracer = pom_tracer.Tracer().set_debug(args.verbose)
+tracer = pom_tracer.Tracer().set_debug(args.verbose).set_color(color)
 if args.trace_poms:
     tracer.set_poms(True)
     trace = True
@@ -55,6 +55,7 @@ def separator(s):
     print("#" * width)
     print(f"# {s} ".ljust(width - 1, " ") + "#")
     print("#" * width)
+    print()
 
 
 # it is needed to manually register all pom not located in M2 repository
@@ -62,17 +63,16 @@ def separator(s):
 register_pom_locations(args.file)
 
 # load pom and resolve it
-def print_files(file, module = None):
+def print_files(file):
     pom = load_pom_from_file(file)
     assert pom
-    if modules is None or module:
+    if modules is None or pom.artifactId in modules:
         separator(pom.fullname2())
         resolve_pom(pom, load_mgts = True, load_deps = True) #, initialProps = initialProps)
         print_pom(pom, color = color, basic = args.basic, sections = sections, indent = width)
 
     for module in pom.modules:
-        if modules is None or module in modules:
-            module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')
-            print_files(module_file, module)
+        module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')
+        print_files(module_file)
 
 print_files(args.file)
