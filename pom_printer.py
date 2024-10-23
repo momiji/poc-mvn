@@ -101,7 +101,6 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
                     break
             if not found:
                 dep_elems.append(dep)
-                print(f"not found {dep.key_excl()}")
 
         # remove 'parent' types
         def remove_parents(node, parent):
