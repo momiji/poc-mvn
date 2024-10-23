@@ -1,5 +1,5 @@
 #!/bin/bash
-set -xEeuo pipefail
+set -Eeuo pipefail
 
 d=$1
 m=$2
