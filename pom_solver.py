@@ -52,8 +52,8 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
     pom.computed_managements = computeMgts
 
     # dependencies that are computed from dependencyManagement
-    pom.added_dependencies = PomDeps()
     if top_pom:
+        pom.added_dependencies = PomDeps()
         pom.computed_dependencies = PomMgts()
 
     # load all pom parents to resolve all properties
@@ -312,6 +312,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
             dep.not_found = True
             continue
         # build new mgts, excls and scopes to initialize recursion
+        dep_pom.added_dependencies = pom.added_dependencies
         dep_pom.computed_dependencies = pom.computed_dependencies
         dep_excls = excls | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
@@ -327,7 +328,6 @@ def new_solver(pom: PomProject, dep: PomDependency, paths: PomPaths, dep_pom: Po
     def fn():
         if TRACER and TRACER.trace_poms(): TRACER.trace("dep | enter", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
         solvers = resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True)
-        pom.added_dependencies.extend(dep_pom.added_dependencies)
         return solvers
     return fn
 
