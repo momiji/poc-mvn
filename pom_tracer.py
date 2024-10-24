@@ -10,20 +10,20 @@ class Tracer:
         self._ranges = False
         self._debug = False
         self._deps = []
+        self._deps_all = False
         self._props = []
+        self._props_all = False
 
-        self._color = os.isatty(1)
-        self._nocolor = lambda x: str(x)
-        self._c_name = self._nocolor if not self._color else lambda x: f"\033[1;33m{x}\033[0m"
-        self._c_att = self._nocolor #if not self._color else lambda x: f"\033[1;32m{x}\033[0m"
-        self._c_val = self._nocolor if not self._color else lambda x: f"\033[1;33m{x}\033[0m"
-
+        self.set_color(os.isatty(1))
+    
     def add_dep(self, dep) -> 'Tracer':
         self._deps.append(dep)
+        if dep == '*': self._deps_all = True
         return self
 
     def add_prop(self, prop) -> 'Tracer':
         self._props.append(prop)
+        if prop == '*': self._props_all = True
         return self
     
     def set_poms(self, poms) -> 'Tracer':
@@ -40,16 +40,20 @@ class Tracer:
 
     def set_color(self, color) -> 'Tracer':
         self._color = color
+        self._nocolor = lambda x: str(x)
+        self._c_name = self._nocolor if not self._color else lambda x: f"\033[1;33m{x}\033[0m"
+        self._c_att = self._nocolor #if not self._color else lambda x: f"\033[1;32m{x}\033[0m"
+        self._c_val = self._nocolor if not self._color else lambda x: f"\033[1;33m{x}\033[0m"
         return self
 
     def trace_poms(self) -> bool:
         return self._poms
 
     def trace_dep(self, ga) -> bool:
-        return ga in self._deps
+        return self._deps_all or ga in self._deps
 
     def trace_prop(self, prop) -> bool:
-        return prop in self._props
+        return self._props_all or prop in self._props
     
     def trace_range(self, ga) -> bool:
         return self._ranges or ga in self._deps

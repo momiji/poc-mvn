@@ -44,8 +44,8 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}", paths)
         print()
 
-    if 'dependencies' in sections:
-        print(f"All non-unique Dependencies ({len(pom.added_dependencies)}):")
+    if 'collect' in sections:
+        print(f"Collected Dependencies ({len(pom.added_dependencies)}):")
         print()
         for dep in sorted(pom.added_dependencies, key=lambda d: (d.groupId, d.artifactId)):
             if dep.type == 'parent': continue
@@ -59,8 +59,8 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'exc: ')
             print()
 
-    if 'collect' in sections:
-        print(f"Collected Dependencies ({len(pom.computed_dependencies)}):")
+    if 'dependencies' in sections:
+        print(f"Dependencies ({len(pom.computed_dependencies)}):")
         print()
         for dep in sorted(pom.computed_dependencies.values(), key=lambda d: (d.groupId, d.artifactId)):
             if dep.type == 'parent': continue

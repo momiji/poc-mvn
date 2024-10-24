@@ -37,6 +37,8 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     trace = TRACER and TRACER.trace_poms() and TRACER.enter("pom | start", pom.fullname(), 'scope', scope)
 
+    top_pom = len(paths) == 0
+
     assert pom.groupId
     assert pom.artifactId
     assert pom.version
@@ -51,7 +53,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     # dependencies that are computed from dependencyManagement
     pom.added_dependencies = PomDeps()
-    if len(paths) == 0:
+    if top_pom:
         pom.computed_dependencies = PomMgts()
 
     # load all pom parents to resolve all properties
@@ -69,10 +71,18 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
         load_managements(pom, paths = paths)
 
     # load all dependencies
+    solvers = []
     if load_deps:
-        load_dependencies(pom, paths = paths, scope = scope, excls = excls)
+        solvers.extend(load_dependencies(pom, paths = paths, scope = scope, excls = excls))
+
+    if top_pom:
+        for solver in solvers:
+            solvers.extend(solver())
+        solvers.clear()
 
     if trace and TRACER: TRACER.exit("pom | end", pom.fullname())
+
+    return solvers
 
 
 def resolve_properties(pom: PomProject):
@@ -166,8 +176,8 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
     paths = paths + [ pom ]
     transitive_only = len(paths) > 1
 
-    deps1 = []
-    deps2 = []
+    deps1: PomDeps = []
+    deps2: PomDeps = []
 
     # load dependencies from parent, without using resolve_pom as all properties are already loaded
     if pom.parent is not None:
@@ -284,11 +294,12 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         # add to computed dependencies
         pom.added_dependencies.append(dep)
         if not skip:
-            if trace and TRACER: TRACER.trace("dep | import", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional, 'paths', dump_paths(paths))
+            if trace and TRACER: TRACER.trace("dep | added", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional, 'paths', dump_paths(paths))
             deps2.append(dep)
 
     # dependencies recursion
     dep_inits = new_initial_managements(pom.initial_managements, pom.computed_managements)
+    solvers = []
     for dep in deps2:
         # skip on non-supported types
         if dep.type in SKIP_TYPES2:
@@ -305,9 +316,20 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None, excls: Exc
         dep_excls = excls | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
         # recursion
-        if TRACER and TRACER.trace_poms(): TRACER.trace("dep | resolve pom", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
-        resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True)
+        solver = new_solver(pom, dep, paths, dep_pom, dep_inits, dep_excls, dep_scope)
+        solvers.append(solver)
+    
+    # return
+    return solvers
+
+
+def new_solver(pom: PomProject, dep: PomDependency, paths: PomPaths, dep_pom: PomProject, dep_inits: PomMgts, dep_excls: dict[str, PomExclusion], dep_scope: str):
+    def fn():
+        if TRACER and TRACER.trace_poms(): TRACER.trace("dep | enter", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
+        solvers = resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True)
         pom.added_dependencies.extend(dep_pom.added_dependencies)
+        return solvers
+    return fn
 
 
 def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:
