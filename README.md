@@ -23,6 +23,7 @@ Dependency tests by comparing with maven:
 
 ```bash
 ./test-all.sh
+./cmp0.sh
 ./cmp1.sh
 ./cmp2.sh
 ./cmp3.sh

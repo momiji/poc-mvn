@@ -57,7 +57,9 @@ def resolve_range_version(dependency: PomDependency) -> str:
     """
     Find the version of a dependency, or return original version.
     """
-    if dependency.version[:1] != '[':
+    first = dependency.version[:1]
+    last = dependency.version[-1:]
+    if first not in '[(' or last not in '])':
         return dependency.version
     # get minimal version and maximal version
     min_version, max_version = dependency.version[1:-1].split(',')
@@ -74,7 +76,15 @@ def resolve_range_version(dependency: PomDependency) -> str:
     highest = None
     for version in versions:
         version = Version(version)
-        if (min_version is None or min_version <= version) and (max_version is None or version < max_version):
+        if (
+            min_version is None or
+            (first == '[' and version >= min_version) or
+            (first == '(' and version > min_version)
+        ) and (
+            max_version is None or
+            (last == ']' and version <= max_version) or
+            (last == ')' and version < max_version)
+        ):
             if highest is None or version > highest:
                 highest = version
     # return highest version
@@ -191,17 +201,27 @@ if __name__ == "__main__":
 
     # find version
     dep1 = PomDependency()
-    dep1.groupId = 'org.apache.maven'
-    dep1.artifactId = 'maven-model'
-    dep1.version = '[3.0,)'
-    resolve_range_version(dep1)
+    dep1.groupId = 'mygroup'
+    dep1.artifactId = 'myartifact'
+    dep1.version = '[1.0,2.0)'
+    assert "1.3" == resolve_range_version(dep1)
     dep1 = PomDependency()
-    dep1.groupId = 'org.apache.maven'
-    dep1.artifactId = 'maven-model'
-    dep1.version = '[3.0,4)'
-    resolve_range_version(dep1)
+    dep1.groupId = 'mygroup'
+    dep1.artifactId = 'myartifact'
+    dep1.version = '[1.0,)'
+    assert "2.1" == resolve_range_version(dep1)
     dep1 = PomDependency()
-    dep1.groupId = 'org.apache.maven'
-    dep1.artifactId = 'maven-model'
-    dep1.version = '[,3.5)'
-    resolve_range_version(dep1)
+    dep1.groupId = 'mygroup'
+    dep1.artifactId = 'myartifact'
+    dep1.version = '[1.0,2)'
+    assert "1.3" == resolve_range_version(dep1)
+    dep1 = PomDependency()
+    dep1.groupId = 'mygroup'
+    dep1.artifactId = 'myartifact'
+    dep1.version = '[1.0,2]'
+    assert "2.0" == resolve_range_version(dep1)
+    dep1 = PomDependency()
+    dep1.groupId = 'mygroup'
+    dep1.artifactId = 'myartifact'
+    dep1.version = '(1.5,2]'
+    assert "2.0" == resolve_range_version(dep1)
