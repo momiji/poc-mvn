@@ -66,9 +66,9 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
     # resolve all properties
     resolve_properties(pom)
     if TRACER:
-        for prop in TRACER._props:
-            if prop in pom.computed_properties:
-                TRACER.trace("prop | property", pom.gav(), prop, pom.computed_properties[prop].value)
+        for prop in pom.computed_properties.values():
+            if TRACER.trace_prop(prop.name):
+                TRACER.trace("prop | property", pom.gav(), prop.name, prop.value)
 
     # load all dependencyManagement
     if load_mgts:
@@ -346,7 +346,6 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
 
 def new_solver(pom: PomProject, dep: PomDependency, paths: PomPaths, dep_pom: PomProject, dep_inits: PomMgts, dep_excls: dict[str, PomExclusion], dep_scope: str):
     def fn():
-        if TRACER and TRACER.trace_poms(): TRACER.trace("dep | enter", dep.fullname2(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
         solvers = resolve_pom(dep_pom, paths = paths, initialMgts = dep_inits, excls = dep_excls, scope = dep_scope, load_mgts = True, load_deps = True)
         return solvers
     return fn
