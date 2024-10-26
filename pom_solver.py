@@ -361,11 +361,11 @@ def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:
         if ini.key_gat() in computed:
             mgt = computed[ini.key_gat()]
             trace = TRACER and TRACER.trace_dep(mgt.key_trace())
-            if trace:
+            if trace and TRACER:
                 TRACER.trace("ini | merging", ini.key_gat(), 'version', ini.version, 'scope', ini.scope, 'optional', ini.optional)
                 TRACER.trace("ini |   applying forced from", ini.key_gat(), 'version', ini.version, 'scope', ini.scope, 'optional', ini.optional, 'paths', dump_paths(ini.paths))
             apply_forced_management(ini, mgt)
-            if trace:
+            if trace and TRACER:
                 TRACER.trace("ini |   merged", mgt.key_gat(), 'version', mgt.version, 'scope', mgt.scope, 'optional', mgt.optional, 'paths', dump_paths(mgt.paths))
             new[ini.key_gat()] = mgt
         else:
