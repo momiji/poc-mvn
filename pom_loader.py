@@ -15,7 +15,7 @@ def load_pom_from_file(file: str, allow_missing = False) -> PomProject | None:
     """
     file = os.path.abspath(file)
     if file in cache_poms:
-        return cache_poms[file].clone()
+        return cache_poms[file].copy()
     
     # if allow_missing and not os.path.exists(file):
     #     return None
@@ -23,7 +23,7 @@ def load_pom_from_file(file: str, allow_missing = False) -> PomProject | None:
     pom = read_pom(file)
     cache_poms[file] = pom
 
-    return pom.clone()
+    return pom.copy()
 
 
 def load_pom_from_dependency(dependency: PomParent | PomDependency, base: str, allow_missing = False) -> PomProject | None:
@@ -32,7 +32,7 @@ def load_pom_from_dependency(dependency: PomParent | PomDependency, base: str, a
     """
     file = find_pom_location(dependency, base)
     pom = load_pom_from_file(file, allow_missing = allow_missing)
-    if pom: cache_deps[pom.fullname()] = file
+    if pom: cache_deps[pom.gav()] = file
     return pom
 
 
@@ -48,12 +48,12 @@ def find_pom_location(dependency: PomParent | PomDependency, base: str) -> str:
         if os.path.exists(file):
             return file
     if isinstance(dependency, PomDependency) and dependency.version[:1] == '[':
-        dependency.version = resolve_version(dependency)
+        dependency.version = resolve_range_version(dependency)
     file = os.path.join(M2_HOME, dependency.groupId.replace(".", "/"), dependency.artifactId, dependency.version, f"{dependency.artifactId}-{dependency.version}.pom")
     return file
 
 
-def resolve_version(dependency: PomDependency) -> str:
+def resolve_range_version(dependency: PomDependency) -> str:
     """
     Find the version of a dependency, or return original version.
     """
@@ -102,7 +102,7 @@ def register_pom_locations(file: str, initialProps: PomProperties | None = None)
     # the only change on the pom should be groupId, artifactId and version
     # allowing to overwrite cache with a correct pom
     load_pom_parents(pom)
-    cache_deps[pom.fullname()] = pom.file
+    cache_deps[pom.gav()] = pom.file
     cache_poms[file] = pom
 
     for module in pom.modules:
@@ -174,18 +174,18 @@ def resolve_value(value: str, props: PomProperties, builtins: PomProperties) -> 
 
 if __name__ == "__main__":
     # load pom
-    pom1 = load_pom_from_file('myartifact/pom.xml')
-    assert pom1 and pom1.fullname() == 'mygroup:myartifact:${revision}'
+    pom1 = load_pom_from_file('tests/pom1.xml')
+    assert pom1 and pom1.gav() == 'mygroup:myartifact:${revision}'
     # register pom
-    register_pom_locations('myartifact/pom.xml')
+    register_pom_locations('tests/pom1.xml')
     # load pom from dependency
     dep1 = PomDependency()
     dep1.groupId = 'mygroup'
     dep1.artifactId = 'myartifact'
     dep1.version = '1.0-SNAPSHOT'
-    pom2 = load_pom_from_dependency(dep1, 'myartifact/pom.xml')
+    pom2 = load_pom_from_dependency(dep1, 'tests/pom1.xml')
     # although it's found with version 1.0-SNAPSHOT, it's still unresolved
-    assert pom2 and pom2.fullname() == 'mygroup:myartifact:1.0-SNAPSHOT'
+    assert pom2 and pom2.gav() == 'mygroup:myartifact:1.0-SNAPSHOT'
     # passed
     print("PASSED")
 
@@ -194,14 +194,14 @@ if __name__ == "__main__":
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[3.0,)'
-    resolve_version(dep1)
+    resolve_range_version(dep1)
     dep1 = PomDependency()
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[3.0,4)'
-    resolve_version(dep1)
+    resolve_range_version(dep1)
     dep1 = PomDependency()
     dep1.groupId = 'org.apache.maven'
     dep1.artifactId = 'maven-model'
     dep1.version = '[,3.5)'
-    resolve_version(dep1)
+    resolve_range_version(dep1)

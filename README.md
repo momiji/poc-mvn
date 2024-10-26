@@ -18,14 +18,21 @@ TODO
 
 ## Tests
 
-You need to compile maven project to download all dependencies:
+Dependency tests by comparing with maven:
 
 ```bash
-( cd myartifact ; mvn compile )
+./test-all.sh
+./cmp1.sh
+./cmp2.sh
+./cmp3.sh
 ```
 
-Then test:
+Unit tests:
 
 ```bash
+python pom_loader.py
 python pom_printer.py
+python pom_reader.py
+python pom_solver.py
+python pom_struct.py
 ```

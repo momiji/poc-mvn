@@ -5,10 +5,49 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python Debugger: Program",
+            "name": "Python Debugger: MyArtifact",
             "type": "debugpy",
             "request": "launch",
-            "program": "mvn-deps.py",
+            "program": "deps.py",
+            "args": [
+                "myartifact/pom.xml",
+                "-m", "myartifact",
+                "-d", "junit:junit:jar:4.13.2:test", "-v", "--color=always"
+            ], 
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Jarvis",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "deps.py",
+            "args": [
+                "~/work/raven2/bug-json-parser/Jarvis/crr/pom.xml",
+                "-m", "crr-compute-ecl",
+            ], 
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: LTV",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "deps.py",
+            "args": [
+                "~/work/LTV/marvel-ltv/pom.xml",
+                "-m", "marvel-ltv-upload-lambda",
+                "-d", "org.mockito:mockito-core:jar:3.6.28:test", "-v", "--color=always"
+            ], 
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: pom6",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "deps.py",
+            "args": [
+                "tests/pom4.xml",
+                "-d", "org.junit.jupiter:junit-jupiter-api", "-v", "--color=always"
+            ], 
             "console": "integratedTerminal"
         },
         {

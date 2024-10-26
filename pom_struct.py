@@ -22,18 +22,29 @@ class PomProject:
     computed_managements: 'PomMgts'
     added_dependencies: 'PomDeps'
     computed_dependencies: 'PomMgts'
+    computed_scope: str
 
-    def clone(self) -> 'PomProject':
-        return deepcopy(self)
+    def copy(self) -> 'PomProject':
+        pom = PomProject()
+        pom.file = self.file
+        pom.groupId = self.groupId
+        pom.artifactId = self.artifactId
+        pom.version = self.version
+        pom.name = self.name
+        pom.packaging = self.packaging
+        pom.parent = self.parent.copy() if self.parent else None
+        pom.properties = deepcopy(self.properties)
+        pom.builtins = self.builtins            # not modified in loader and solver
+        pom.managements = self.managements      # not modified in loader and solver, as load_managements is always copying it
+        pom.dependencies = self.dependencies    # not modified in loader and solver, as load_dependencies is always copying it
+        pom.modules = self.modules              # not modified in loader and solver
+        return pom
 
-    def fullname(self):
+    def gav(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
-    def fullname2(self):
-        return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}"
-
-    def key_ga(self):
-        return f"{self.groupId}:{self.artifactId}"
+    def fullname(self):
+        return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}:{self.computed_scope}"
 
     def key_gap(self):
         return f"{self.groupId}:{self.artifactId}:{self.packaging}"
@@ -42,7 +53,7 @@ class PomProject:
         return f"{self.groupId}:{self.artifactId}"
 
     def __repr__(self):
-        return f"PomProject({self.fullname()})"
+        return f"PomProject({self.gav()})"
     
 
 class PomParent:
@@ -53,7 +64,16 @@ class PomParent:
     artifactId: str
     version: str
     relativePath: str
+    # computed
     pom: PomProject
+
+    def copy(self) -> 'PomParent':
+        pom = PomParent()
+        pom.groupId = self.groupId
+        pom.artifactId = self.artifactId
+        pom.version = self.version
+        pom.relativePath = self.relativePath
+        return pom
 
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
@@ -173,7 +193,7 @@ if __name__ == "__main__":
     project1.groupId = "com.example1"
     project1.parent = PomParent()
     project1.parent.groupId = "com.example1.parent"
-    project2 = project1.clone()
+    project2 = project1.copy()
     project2.groupId = "com.example2"
     assert project2.parent
     project2.parent.groupId = "com.example2.parent"

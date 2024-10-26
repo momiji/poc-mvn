@@ -161,13 +161,14 @@ def unexpected_tags(pom: PomProject, elem, tag: str, allowed: list):
     tags = find_tags(elem, tag)
     tags = [ t for t in tags if t not in allowed ]
     if len(tags) > 0:
-        raise Exception(f"Unexpected tags: {tags} in pom {pom.fullname()}\n{etree.tostring(elem)}")
+        raise Exception(f"Unexpected tags: {tags} in pom {pom.gav()}\n{etree.tostring(elem)}")
 
 if __name__ == "__main__":
     # verify reading pom.xml
-    pom1 = read_pom('myartifact/pom.xml')
-    assert pom1.fullname() == "mygroup:myartifact:${revision}"
+    pom1 = read_pom('tests/pom1.xml')
+    assert pom1.gav() == "mygroup:myartifact:${revision}"
+    # read old pom format
     pom2 = read_pom('commons-configuration-1.6.pom')
-    assert pom2.fullname() == "commons-configuration:commons-configuration:1.6"
+    assert pom2.gav() == "commons-configuration:commons-configuration:1.6"
     # passed
     print("PASSED")
