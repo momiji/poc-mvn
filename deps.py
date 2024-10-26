@@ -9,12 +9,11 @@ parser.add_argument('-b', '--basic', action="store_true", help='For basic tree o
 parser.add_argument('-s', '--sections', default='dependencies', help='Print only sections: project|proj, properties|props, managements|mgts, dependencies|deps, collect|coll, tree, all, none')
 parser.add_argument('-m', '--modules', help="Print only modules in format 'module,module,...'")
 parser.add_argument('--poms', action="store_true", help='Trace poms')
-parser.add_argument('-d', '--deps', help='Trace dependencies in format "groupId:artifactId,groupId:artifactId,..."')
+parser.add_argument('--deps', help='Trace dependencies in format "groupId:artifactId,groupId:artifactId,..."')
 parser.add_argument('--props', help='Trace properties in format "name,name,..."')
 parser.add_argument('--ranges', action="store_true", help='Trace ranges computation')
-parser.add_argument('-v', '--verbose', action="store_true", help='Trace verbose mode')
 parser.add_argument('file', nargs='?', default='pom.xml', type=str, help='pom.xml file location')
-parser.add_argument('-w', '--width', type=int, default=150, help='Width of the first colomn')
+parser.add_argument('-w', '--width', type=int, default=120, help='Width of the first colomn')
 
 args = parser.parse_args()
 
@@ -68,9 +67,9 @@ from pom_printer import print_pom
 
 def separator(s):
     # print separator
-    print("#" * width)
-    print(f"# {s} ".ljust(width - 1, " ") + "#")
-    print("#" * width)
+    print("#" * (width + 3))
+    print(f"# {s} ".ljust(width + 2, " ") + "#")
+    print("#" * (width + 3))
 
 
 # it is needed to manually register all pom not located in M2 repository
@@ -81,11 +80,10 @@ register_pom_locations(file)
 def print_files(file):
     pom = load_pom_from_file(file)
     assert pom
-    pom.computed_scope = 'all'
     if modules is None or pom.artifactId in modules:
         separator(pom.fullname())
         resolve_pom(pom, load_mgts = True, load_deps = True) #, initialProps = initialProps)
-        print_pom(pom, color = color, basic = args.basic, sections = sections, indent = width, verbose = args.verbose)
+        print_pom(pom, color = color, basic = args.basic, sections = sections, indent = width)
 
     for module in pom.modules:
         module_file = os.path.join(os.path.dirname(file), module, 'pom.xml')

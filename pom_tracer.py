@@ -5,7 +5,6 @@ TRACER: 'Tracer | None' = None
 class Tracer:
     def __init__(self):
         self.line = 0
-        self._indent = 0
         self._poms = False
         self._ranges = False
         self._debug = False
@@ -13,6 +12,7 @@ class Tracer:
         self._deps_all = False
         self._props = []
         self._props_all = False
+        self._ctx = None
 
         self.set_color(os.isatty(1))
     
@@ -58,24 +58,15 @@ class Tracer:
     def trace_range(self, ga) -> bool:
         return self._ranges or ga in self._deps
     
-    def enter(self, text: str | None = None, *args: str) -> bool:
-        if text: self.trace(text, *args)
-        self._indent += 1
-        return True
-
-    def exit(self, text: str | None = None, *args: str):
-        self._indent -= 1
-        if text: self.trace(text, *args)
-
     def trace(self, text: str, *args) -> bool:
-        print(f"{self.line}: {'  ' * self._indent}{self.format(text, *args)}")
-        self.line += 1
-        return True
-    
-    def trace2(self, text: str, *args) -> bool:
-        if not self._debug: return True
-        print(f"{self.line}: {'  ' * self._indent}{self.format(text, *args)}")
-        self.line += 1
+        if self._ctx is not None:
+            print()
+            print(f"{self.line}: {self._ctx}")
+            self._ctx = None
+            self.line += 1
+        if text != '':
+            print(f"{self.line}: {self.format(text, *args)}")
+            self.line += 1
         return True
     
     def format(self, text: str, *args) -> str:
@@ -92,3 +83,6 @@ class Tracer:
             p = p + 1
             if p == len(c): p = 0
         return text + ':' + ''.join(t)
+
+    def set_ctx(self, text: str, *args):
+        self._ctx = self.format(text, *args)

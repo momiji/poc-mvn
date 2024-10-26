@@ -23,6 +23,7 @@ class PomProject:
     added_dependencies: 'PomDeps'
     computed_dependencies: 'PomMgts'
     computed_scope: str
+    computed_exclusions: 'PomExclusions'
 
     def copy(self) -> 'PomProject':
         pom = PomProject()
@@ -38,13 +39,17 @@ class PomProject:
         pom.managements = self.managements      # not modified in loader and solver, as load_managements is always copying it
         pom.dependencies = self.dependencies    # not modified in loader and solver, as load_dependencies is always copying it
         pom.modules = self.modules              # not modified in loader and solver
+        pom.computed_scope = 'all'
         return pom
 
     def gav(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
     def fullname(self):
-        return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}:{self.computed_scope}"
+        if self.computed_scope == 'all':
+            return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}"
+        else:
+            return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}:{self.computed_scope}"
 
     def key_gap(self):
         return f"{self.groupId}:{self.artifactId}:{self.packaging}"
@@ -186,6 +191,7 @@ PomInfos = PomProject | PomParent | PomDependency
 PomMgts = dict[str, PomDependency]
 PomDeps = list[PomDependency]
 PomPaths = list[PomProject]
+PomExclusions = dict[str, PomExclusion]
 
 if __name__ == "__main__":
     # verify that the object is deep cloned

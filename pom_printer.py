@@ -7,7 +7,7 @@ SECTIONS = ['project', 'properties', 'managements', 'dependencies', 'collect', '
 SECTIONS_ALIAS = { 'proj': 'project', 'props': 'properties', 'mgts': 'managements', 'deps': 'dependencies', 'coll': 'collect' }
 
 
-def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = False, sections: list[str] | None = None, verbose = False):
+def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = False, sections: list[str] | None = None):
     """
     Print the pom project.
     It is assumed that all properties, dependencyManagement and dependencies have already been loaded.
@@ -15,19 +15,16 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
     nocolor = lambda x: x
     c_name = nocolor if not color else lambda x: f"\033[1;33m{x}\033[0m"
     c_val = nocolor if not color else lambda x: f"\033[1;32m{x}\033[0m"
+    c_sco = nocolor if not color else lambda x: f"\033[1;31m{x}\033[0m"
     c_indent = 11 if color else 0
-    indent1 = indent + c_indent
     indent2 = indent + 2 * c_indent
+    indent3 = indent + 3 * c_indent
 
     # compute sections to print
     if sections is None: sections = SECTIONS
     for section in sections:
         if section in SECTIONS_ALIAS:
             sections.append(SECTIONS_ALIAS[section])
-    
-    # printer
-    def printer(indent: int, text: str, comment = '', prefix = ''):
-        print_comment(indent, text, comment, prefix, verbose)
     
     print()
     
@@ -40,14 +37,14 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         print()
         for prop in sorted(pom.computed_properties.values(), key=lambda p: p.name):
             paths = dump_paths(prop.paths)
-            printer(indent2, f"    {c_name(prop.name)}: {c_val(prop.value)}", paths)
+            print_comment(indent2, f"    {c_name(prop.name)}: {c_val(prop.value)}", paths)
         print()
 
     if 'managements' in sections:
         print(f"Dependency Management ({len(pom.computed_managements)}):")
         for dep in sorted(pom.computed_managements.values(), key=lambda d: (d.groupId, d.artifactId, d.scope)):
             paths = dump_paths(dep.paths)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}", paths)
+            print_comment(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}", paths)
         print()
 
     if 'collect' in sections:
@@ -56,13 +53,13 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         for dep in sorted(pom.added_dependencies, key=lambda d: (d.groupId, d.artifactId)):
             if dep.type == 'parent': continue
             paths = dump_paths(dep.paths)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'dep: ')
             paths = dump_paths(dep.pathsVersion)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'ver: ')
             paths = dump_paths(dep.pathsScope)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'scp: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'scp: ')
             paths = dump_paths(dep.pathsExclusions)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'exc: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'exc: ')
             print()
 
     if 'dependencies' in sections:
@@ -71,13 +68,13 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         for dep in sorted(pom.computed_dependencies.values(), key=lambda d: (d.groupId, d.artifactId)):
             if dep.type == 'parent': continue
             paths = dump_paths(dep.paths)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'dep: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'dep: ')
             paths = dump_paths(dep.pathsVersion)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'ver: ')
             paths = dump_paths(dep.pathsScope)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'scp: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'scp: ')
             paths = dump_paths(dep.pathsExclusions)
-            printer(indent2, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'exc: ')
+            print_comment(indent3, f"    {c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'exc: ')
             print()
 
     if 'tree' in sections:
@@ -138,11 +135,11 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
                 h = header + elbow if i + 1 == size else header + tee
                 dep = node
                 paths = dump_paths(dep.pathsVersion)
-                printer(indent2, f"    {h}{c_name(dep.key_gat())}:{c_val(dep.version)}:{dep.scope}{' not found' if dep.not_found else ''}", paths, 'ver: ')
+                print_comment(indent3, f"    {h}{c_name(dep.key_gat())}:{c_val(dep.version)}:{c_sco(dep.scope)}{' not found' if dep.not_found else ''}", paths, 'ver: ')
                 h = header + blank if i + 1 == size else header + pipe
                 tree_loop(dep, h)
 
-        printer(indent2, f"    {c_name(pom.key_gap())}:{c_val(pom.version)}")
+        print_comment(indent2, f"    {c_name(pom.key_gap())}:{c_val(pom.version)}")
         tree_loop(pom)
 
         print()
@@ -152,8 +149,8 @@ def cname(name: str) -> str:
     return f"${{{name}}}"
 
 
-def print_comment(indent: int, text: str, comment = '', prefix = '', verbose = False):
-    if len(comment) == 0 or not verbose:
+def print_comment(indent: int, text: str, comment = '', prefix = ''):
+    if len(comment) == 0:
         print(text)
     else:
         print(f"{text.ljust(indent)}  # {prefix}{comment}")
@@ -171,6 +168,5 @@ def dump_paths(paths: list[PomProject]):
 if __name__ == '__main__':
     pom1 = load_pom_from_file('tests/pom1.xml')
     assert pom1
-    pom1.computed_scope = 'all'
     resolve_pom(pom1, load_mgts = True, load_deps = True)
     print_pom(pom1)
