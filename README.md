@@ -6,11 +6,12 @@ This is of course a work in progress and is limited to my use case.
 
 So far:
 
-- [x] propreties with parents
+- [x] properties with parents
 - [x] dependencyManagement with parents
 - [x] dependencies with parents
 - [ ] profiles
-- [ ] download missing pom
+- [ ] refactor ranges solver to use metadata file instead of listing files in folder
+- [ ] download missing files from maven central
 
 ## Using
 
