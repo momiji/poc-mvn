@@ -40,7 +40,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialProps: Po
     if TRACER and TRACER.trace_poms():
         TRACER.trace("")
 
-    top_pom = len(paths) == 0
+    top_pom = paths.length == 0
 
     assert pom.groupId
     assert pom.artifactId
@@ -60,6 +60,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialProps: Po
     if top_pom:
         pom.added_dependencies = PomDeps()
         pom.computed_dependencies = PomMgts()
+        pom.computed_type = 'pom'
 
     # load all pom parents to resolve all properties
     load_pom_parents(pom, paths = paths, props = pom.computed_properties)
@@ -111,10 +112,11 @@ def load_managements(pom: PomProject, curr: PomProject | None = None, paths: Pom
     if curr is None: curr = pom
     if paths is None: paths = PomPaths()
 
-    paths = paths + [ curr ]
+    paths = paths.add(curr, 1)
 
     # load dependencies from parent, without using resolve_pom as all properties are already loaded
     if curr.parent is not None:
+        curr.parent.pom.computed_type = 'parent'
         load_managements(pom, curr.parent.pom, paths = paths)
 
     # loop dependencies in pom order, as it can be manually changed
@@ -134,6 +136,7 @@ def load_managements(pom: PomProject, curr: PomProject | None = None, paths: Pom
             # load dependencies from this import with new empty properties
             dep_pom = load_pom_from_dependency(dep, curr.file)
             assert dep_pom
+            dep_pom.computed_type = 'parent'
             resolve_pom(dep_pom, paths = paths, computeMgts = pom.computed_managements, load_mgts = True)
         else:
             # merge with existing dependencyManagement
@@ -175,11 +178,12 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
     if paths is None: paths = PomPaths()
 
     deps: PomDeps = []
-    paths = paths + [ pom ]
-    solvers = []
+    paths = paths.add(pom, 0 if pom.computed_type == 'parent' else 1) # pom11 => parent poms have priority over transitive dependencies, so they need to be loaded as same length as child
     dep_inits = new_initial_managements(pom.initial_managements, pom.computed_managements)
+    transitive_only = paths.length > 1
 
     # load dependencies from parent, without using resolve_pom as all properties are already loaded
+    # pom12 => even though parent is added before direct dependencies, they are in reality loaded after (as they are loaded from recursion), with the same paths length as the pom
     if pom.parent is not None:
         dep_pom = PomDependency()
         dep_pom.groupId = pom.parent.groupId
@@ -200,10 +204,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
         deps.append(dep_pom)
 
     # load dependencies in pom order, as it can be manually changed
-    deps.extend(pom.dependencies)
-
-    # scan dependencies to fix and skip
-    for dep in deps:
+    for dep in pom.dependencies:
         dep = dep.copy()
         trace = TRACER and TRACER.trace_dep(dep.key_trace()) and TRACER.trace("dep | adding", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'paths', dump_paths(paths))
         
@@ -235,13 +236,13 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
         # this is why default is done before checking transitivity and initial is done after
         transitive_scope = SCOPES[pom.computed_scope][dep.scope]
         is_transitive = transitive_scope is None
-        if is_transitive:
+        if transitive_only and is_transitive:
             if trace and TRACER: TRACER.trace("dep |   skip (not transitive)", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
             continue
 
         # optional check
         # it is assumed it must stay around transitivity check :-)
-        if is_transitive and dep.optional == 'true':
+        if transitive_only and dep.optional == 'true':
             if trace and TRACER: TRACER.trace("dep |   skip (is optional)", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
             continue
 
@@ -273,7 +274,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
             loaded = pom.computed_dependencies[dep.key_excl()]
             # can skip if same scope
             if PRIORITY_SCOPES.index(dep.scope) == PRIORITY_SCOPES.index(loaded.scope):
-                if len(paths) >= len(loaded.paths):
+                if paths.length >= loaded.paths.length:
                     if trace and TRACER: TRACER.trace("dep |   no recurse (already loaded)", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'optional', dep.optional)
                     skip = True
             # can skip if new scope is less important
@@ -292,7 +293,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
                     loaded.scope = dep.scope
                     fixed = True
                 # overwrite all other properties, just updating loadedDeps as it is a copy
-                if len(paths) < len(loaded.paths):
+                if paths.length < loaded.paths.length:
                     loaded.version = dep.version
                     loaded.type = dep.type
                     loaded.classifier = dep.classifier
@@ -316,13 +317,16 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
         pom.added_dependencies.append(dep)
 
         # skip?
-        if skip:
-            continue
+        if skip: continue
 
         # skip on non-supported types
-        if dep.type in SKIP_TYPES2:
-            continue
+        if dep.type in SKIP_TYPES2: continue
 
+        # add to dependencies
+        deps.append(dep)
+
+    solvers = []
+    for dep in deps:
         # prepare dependency for recursion
         trace = TRACER and TRACER.trace_dep(dep.key_trace()) and TRACER.trace("dep | recurse", dep.key_gat(), 'version', dep.version, 'scope', dep.scope, 'type', dep.type, 'paths', dump_paths(paths))
         dep_pom = load_pom_from_dependency(dep, pom.file, allow_missing = True)
@@ -334,6 +338,7 @@ def load_dependencies(pom: PomProject, paths: PomPaths | None = None):
         # build new mgts, excls and scopes to initialize recursion
         dep_pom.added_dependencies = pom.added_dependencies
         dep_pom.computed_dependencies = pom.computed_dependencies
+        dep_pom.computed_type = dep.type
         dep_excls = pom.computed_exclusions | { excl.key():excl for excl in dep.exclusions }
         dep_scope = dep.scope
 
@@ -406,7 +411,7 @@ def merge_management(old: PomDependency, new: PomDependency) -> PomDependency:
     """
     Return the dependencyManagement with the shorter path.
     """
-    if len(new.paths) < len(old.paths):
+    if new.paths.length < old.paths.length:
         return new
     return old
 
@@ -449,13 +454,13 @@ def apply_forced_management(mgt: PomDependency, dep: PomDependency):
         dep.pathsExclusions = mgt.pathsExclusions
 
 
-def dump_paths(paths: list[PomProject]):
+def dump_paths(paths: PomPaths):
     """
     Dump paths to a string.
     """
-    if len(paths) == 1:
+    if len(paths.paths) == 1:
         return '.'
-    return f"{len(paths)} / {' '.join([p.fullname() for p in paths[1:]])}"
+    return f"{paths.length} / {' '.join([p.fullname() for p in paths.paths[1:]])}"
 
 
 if __name__ == "__main__":

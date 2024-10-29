@@ -1,7 +1,7 @@
 import os
 from pom_loader import load_pom_from_file
 from pom_solver import resolve_pom
-from pom_struct import PomProject, PomDependency
+from pom_struct import PomProject, PomDependency, PomPaths
 
 SECTIONS = ['project', 'properties', 'managements', 'dependencies', 'collect', 'tree']
 SECTIONS_ALIAS = { 'proj': 'project', 'props': 'properties', 'mgts': 'managements', 'deps': 'dependencies', 'coll': 'collect' }
@@ -87,10 +87,11 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         dep_nodes = { pom.key_excl(): dep_root }
         dep_parents = {}
         for dep in sorted(dep_elems, key=lambda d: (d.groupId, d.artifactId)):
+            parent = [ p for p in dep.paths.paths if p.computed_type != 'parent' ][-1]
             if dep.key_excl() not in dep_parents:
-                dep_parents[dep.key_excl()] = [ dep.paths[-1].key_excl() ]
+                dep_parents[dep.key_excl()] = [ parent.key_excl() ]
             else:
-                dep_parents[dep.key_excl()].append(dep.paths[-1].key_excl())
+                dep_parents[dep.key_excl()].append(parent.key_excl())
 
         # create graph
         for dep in dep_elems:
@@ -105,20 +106,20 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
             if not found:
                 dep_elems.append(dep)
 
-        # remove 'parent' types
-        def remove_parents(node, parent):
-            dep = node[0]
-            childs = node[1]
-            if parent is not None and dep.type == 'parent':
-                parent[1].extend(childs)
-                childs = []
-                del dep_nodes[dep.key_excl()]
-            else:
-                parent = node
-            for child in childs:
-                node = dep_nodes[child.key_excl()]
-                remove_parents(node, parent)
-        remove_parents(dep_root, None)
+        # # remove 'parent' types
+        # def remove_parents(node, parent):
+        #     dep = node[0]
+        #     childs = node[1]
+        #     if parent is not None and dep.type == 'parent':
+        #         parent[1].extend(childs)
+        #         childs = []
+        #         del dep_nodes[dep.key_excl()]
+        #     else:
+        #         parent = node
+        #     for child in childs:
+        #         node = dep_nodes[child.key_excl()]
+        #         remove_parents(node, parent)
+        # remove_parents(dep_root, None)
 
         # print tree
         print(f"Tree Dependencies ({len(dep_nodes) - 1}):")
@@ -156,13 +157,13 @@ def print_comment(indent: int, text: str, comment = '', prefix = ''):
         print(f"{text.ljust(indent)}  # {prefix}{comment}")
 
 
-def dump_paths(paths: list[PomProject]):
+def dump_paths(paths: PomPaths):
     """
     Dump paths to a string.
     """
-    if len(paths) == 1:
+    if len(paths.paths) == 1:
         return '.'
-    return ' -> '.join([p.fullname() for p in paths[1:]])
+    return ' -> '.join([p.fullname() for p in paths.paths[1:]])
 
 
 if __name__ == '__main__':

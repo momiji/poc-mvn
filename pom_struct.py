@@ -24,6 +24,7 @@ class PomProject:
     computed_dependencies: 'PomMgts'
     computed_scope: str
     computed_exclusions: 'PomExclusions'
+    computed_type: str
 
     def copy(self) -> 'PomProject':
         pom = PomProject()
@@ -40,13 +41,14 @@ class PomProject:
         pom.dependencies = self.dependencies    # not modified in loader and solver, as load_dependencies is always copying it
         pom.modules = self.modules              # not modified in loader and solver
         pom.computed_scope = 'all'
+        pom.computed_type = 'pom'
         return pom
 
     def gav(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
 
     def fullname(self):
-        if self.computed_scope == 'all':
+        if self.computed_type == 'pom' or self.computed_type == 'parent':
             return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}"
         else:
             return f"{self.groupId}:{self.artifactId}:{self.packaging}:{self.version}:{self.computed_scope}"
@@ -58,7 +60,7 @@ class PomProject:
         return f"{self.groupId}:{self.artifactId}"
 
     def __repr__(self):
-        return f"PomProject({self.gav()})"
+        return f"PomProject({self.fullname()})"
     
 
 class PomParent:
@@ -93,7 +95,7 @@ class PomProperty:
     """
     name: str
     value: str
-    paths: list[PomProject]
+    paths: 'PomPaths'
 
     def __repr__(self) -> str:
         return f"PomProperty({self.name}={self.value})"
@@ -103,7 +105,7 @@ class PomProperties(dict[str, PomProperty]):
     """
     Represents a Maven properties.
     """
-    def addIfMissing(self, name: str, value: str, paths: list[PomProject] | None = None):
+    def addIfMissing(self, name: str, value: str, paths: 'PomPaths | None' = None):
         """
         Set a property value only if it does not already exists.
         """
@@ -111,14 +113,14 @@ class PomProperties(dict[str, PomProperty]):
             return
         self.set(name, value, paths)
 
-    def set(self, name: str, value: str, paths: list[PomProject] | None = None):
+    def set(self, name: str, value: str, paths: 'PomPaths | None' = None):
         """
         Set a property value even if it already exists.
         """
         prop = PomProperty()
         prop.name = name
         prop.value = value
-        prop.paths = paths or []
+        prop.paths = paths or PomPaths()
         self[name] = prop
     
     def copy(self) -> 'PomProperties':
@@ -156,17 +158,17 @@ class PomDependency:
     type: str
     classifier: str
     optional: str
-    paths: list[PomProject]
+    paths: 'PomPaths'
     exclusions: list[PomExclusion]
     # unused properties
     relativePath: str
     # hidden properties
     not_found: bool
     # paths for properties
-    pathsVersion: list[PomProject]
-    pathsScope: list[PomProject]
-    pathsOptional: list[PomProject]
-    pathsExclusions: list[PomProject]
+    pathsVersion: 'PomPaths'
+    pathsScope: 'PomPaths'
+    pathsOptional: 'PomPaths'
+    pathsExclusions: 'PomPaths'
 
     def fullname(self):
         return f"{self.groupId}:{self.artifactId}:{self.version}"
@@ -187,14 +189,32 @@ class PomDependency:
         return copy(self)
     
     def __repr__(self) -> str:
-        return f"PomDependency({self.groupId}:{self.artifactId}:{self.type}:{self.version})[{len(self.paths) if 'paths' in self.__dict__ else 0}]"
+        return f"PomDependency({self.groupId}:{self.artifactId}:{self.type}:{self.version})[{self.paths.length}]"
+
+
+class PomPaths:
+    """
+    Represents a Maven dependency path.
+    """
+    paths: list[PomProject]
+    length: int
+
+    def __init__(self):
+        self.paths = []
+        self.length = 0
+
+    def add(self, pom: PomProject, incr: int):
+        paths = PomPaths()
+        paths.paths = self.paths + [ pom ]
+        paths.length = self.length + incr
+        return paths
 
 
 PomInfos = PomProject | PomParent | PomDependency
 PomMgts = dict[str, PomDependency]
 PomDeps = list[PomDependency]
-PomPaths = list[PomProject]
 PomExclusions = dict[str, PomExclusion]
+
 
 if __name__ == "__main__":
     # verify that the object is deep cloned

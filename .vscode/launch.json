@@ -23,7 +23,20 @@
             "program": "deps.py",
             "args": [
                 "~/work/raven2/bug-json-parser/Jarvis/crr/pom.xml",
-                "-m", "crr-compute-ecl",
+                "-pl", "crr-compute-ecl",
+            ], 
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Python Debugger: Starter-Kit",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "deps.py",
+            "args": [
+                "-f", "~/work/ocf/starter-kit",
+                "-pl", "framework",
+                "--deps", "org.brotli:dec",
+                "-s", "tree"
             ], 
             "console": "integratedTerminal"
         },
@@ -34,8 +47,8 @@
             "program": "deps.py",
             "args": [
                 "~/work/LTV/marvel-ltv/pom.xml",
-                "-m", "marvel-ltv-upload-lambda",
-                "-d", "org.mockito:mockito-core:jar:3.6.28:test", "-v", "--color=always"
+                "-pl", "marvel-ltv-upload-lambda",
+                "--deps", "org.mockito:mockito-core:jar:3.6.28:test", "-v", "--color=always"
             ], 
             "console": "integratedTerminal"
         },
@@ -46,7 +59,7 @@
             "program": "deps.py",
             "args": [
                 "tests/pom4.xml",
-                "-d", "org.junit.jupiter:junit-jupiter-api", "-v", "--color=always"
+                "--deps", "org.junit.jupiter:junit-jupiter-api", "-v", "--color=always"
             ], 
             "console": "integratedTerminal"
         },

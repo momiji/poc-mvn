@@ -131,7 +131,7 @@ def load_pom_parents(pom: PomProject, xinitialProps: PomProperties | None = None
     if props is None: props = PomProperties()
     if paths is None: paths = PomPaths()
 
-    paths = paths + [ pom ]
+    paths = paths.add(pom, 1)
 
     # add initial properties
     for prop in xinitialProps.values():
