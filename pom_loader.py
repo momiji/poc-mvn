@@ -106,7 +106,7 @@ def register_pom_locations(file: str, initialProps: PomProperties | None = None)
 
     # add initial properties, allowing submodules to have parent properties
     for prop in initialProps.values():
-        pom.properties.addIfMissing(prop.name, prop.value)
+        pom.properties.set(prop.name, prop.value)
 
     # load parents to resolve properties, but not in the pom as we don't provide props = pom.computed_properties
     # the only change on the pom should be groupId, artifactId and version

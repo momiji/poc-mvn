@@ -121,6 +121,9 @@ class PomProperties(dict[str, PomProperty]):
         prop.paths = paths or []
         self[name] = prop
     
+    def copy(self) -> 'PomProperties':
+        return copy(self)
+    
     def __repr__(self) -> str:
         return f"PomProperties({len(self)})"
 

@@ -25,11 +25,12 @@ SKIP_TYPES2 = [ 'pom' ]
 
 Scopes = dict[str, str]
 
-def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: PomMgts | None = None, computeMgts: PomMgts | None = None, excls: PomExclusions | None = None, scope = DEFAULT_SCOPE, load_mgts = False, load_deps = False):
+def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialProps: PomProperties | None = None, initialMgts: PomMgts | None = None, computeMgts: PomMgts | None = None, excls: PomExclusions | None = None, scope = DEFAULT_SCOPE, load_mgts = False, load_deps = False):
     """
     Resolve all dependencies a pom project.
     """
     if paths is None: paths = PomPaths()
+    if initialProps is None: initialProps = PomProperties()
     if initialMgts is None: initialMgts = PomMgts()
     if computeMgts is None: computeMgts = PomMgts()
     if excls is None: excls = PomExclusions()
@@ -47,7 +48,7 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialMgts: Pom
 
     # initial properties
     pom.computed_scope = scope
-    pom.computed_properties = PomProperties()
+    pom.computed_properties = initialProps
     pom.computed_exclusions = excls
 
     # management that override dependency properties, in opposite to computed_managements that are defaults to empty dependencies.

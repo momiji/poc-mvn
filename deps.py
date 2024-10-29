@@ -6,13 +6,14 @@ SECTIONS = 'project,proj,properties,props,managements,mgts,dependencies,deps,col
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--color', choices=['auto', 'never', 'always'], default='auto', help='Color output: auto, never, or always')
 parser.add_argument('-b', '--basic', action="store_true", help='For basic tree output')
+parser.add_argument('-D', '--define', action="append", help='Define properties in format "name=value"')
+parser.add_argument('-f', '--file', default='pom.xml', type=str, help='pom.xml file location')
+parser.add_argument('-pl', '--projects', help="Print only projects in format 'module,module,...'")
 parser.add_argument('-s', '--sections', default='dependencies', help='Print only sections: project|proj, properties|props, managements|mgts, dependencies|deps, collect|coll, tree, all, none')
-parser.add_argument('-m', '--modules', help="Print only modules in format 'module,module,...'")
-parser.add_argument('--poms', action="store_true", help='Trace poms')
 parser.add_argument('--deps', help='Trace dependencies in format "groupId:artifactId,groupId:artifactId,..."')
+parser.add_argument('--poms', action="store_true", help='Trace poms')
 parser.add_argument('--props', help='Trace properties in format "name,name,..."')
 parser.add_argument('--ranges', action="store_true", help='Trace ranges computation')
-parser.add_argument('file', nargs='?', default='pom.xml', type=str, help='pom.xml file location')
 parser.add_argument('-w', '--width', type=int, default=120, help='Width of the first colomn')
 
 args = parser.parse_args()
@@ -20,9 +21,10 @@ args = parser.parse_args()
 color = os.isatty(1) if args.color == 'auto' else True if args.color == 'always' else False
 sections = [ s.strip() for s in args.sections.split(',') ] if args.sections else [ 'all' ]
 sections = SECTIONS if 'all' in sections else sections
-modules = [ m.strip() for m in args.modules.split(',') ] if args.modules else None
+projects = [ m.strip() for m in args.projects.split(',') ] if args.projects else None
 width = args.width
 file = os.path.isdir(args.file) and os.path.join(args.file, 'pom.xml') or args.file
+defines = args.define or []
 
 # check supported sections
 for section in sections:
@@ -64,6 +66,7 @@ if trace:
 from pom_loader import load_pom_from_file, register_pom_locations
 from pom_solver import resolve_pom
 from pom_printer import print_pom
+from pom_struct import PomProperties
 
 def separator(s):
     # print separator
@@ -72,17 +75,23 @@ def separator(s):
     print("#" * (width + 3))
 
 
+# define properties
+initialProps = PomProperties()
+for define in defines:
+    name, value = define.split('=', 2)
+    initialProps.set(name, value)
+
 # it is needed to manually register all pom not located in M2 repository
 # so they can be found even if their properties are not resolved
-register_pom_locations(file)
+register_pom_locations(file, initialProps=initialProps.copy())
 
 # load pom and resolve it
 def print_files(file):
     pom = load_pom_from_file(file)
     assert pom
-    if modules is None or pom.artifactId in modules:
+    if projects is None or pom.artifactId in projects:
         separator(pom.fullname())
-        resolve_pom(pom, load_mgts = True, load_deps = True) #, initialProps = initialProps)
+        resolve_pom(pom, initialProps=initialProps.copy(), load_mgts = True, load_deps = True) #, initialProps = initialProps)
         print_pom(pom, color = color, basic = args.basic, sections = sections, indent = width)
 
     for module in pom.modules:
