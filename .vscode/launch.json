@@ -10,9 +10,9 @@
             "request": "launch",
             "program": "deps.py",
             "args": [
-                "myartifact/pom.xml",
-                "-m", "myartifact",
-                "-d", "junit:junit:jar:4.13.2:test", "-v", "--color=always"
+                "-f", "myartifact/pom.xml",
+                "-pl", "myartifact",
+                "--deps", "junit:junit:jar:4.13.2:test"
             ], 
             "console": "integratedTerminal"
         },
@@ -53,13 +53,12 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Python Debugger: pom6",
+            "name": "Python Debugger: pom X",
             "type": "debugpy",
             "request": "launch",
             "program": "deps.py",
             "args": [
-                "tests/pom4.xml",
-                "--deps", "org.junit.jupiter:junit-jupiter-api", "-v", "--color=always"
+                "-f", "tests/pom13.xml"
             ], 
             "console": "integratedTerminal"
         },

@@ -1,6 +1,8 @@
 from pom_loader import load_pom_parents, resolve_value, load_pom_from_file, resolve_artifact, load_pom_from_dependency, resolve_range_version
 from pom_struct import PomProject, PomPaths, PomMgts, PomExclusion, PomProperties, PomDeps, PomDependency, PomExclusions
 from pom_tracer import *
+from packaging.version import Version
+import platform
 
 # Scopes dict (parent scope) -> dict (dependency scope) -> new scope = None if skip as scope is not allowed or starting with '-' if scope is not transitive
 # '?' means that the new scope is not yet defined to mimic maven behavior, and must be checked against real samples
@@ -22,6 +24,12 @@ ORDERED_SCOPES = [ 'all', 'compile', 'test', 'provided', 'runtime', 'system' ] #
 ALL_TYPES = [ 'jar', 'parent', 'pom' ]
 SKIP_TYPES = [ 'test-jar', 'zip', 'dll', 'dylib', 'so' ]
 SKIP_TYPES2 = [ 'pom' ]
+
+JDK = '21.0.2'
+OS_NAME = platform.system().lower()
+OS_ARCH = "amd64" if platform.machine().lower() == "x86_64" else platform.machine().lower()
+OS_VERSION = platform.release().lower()
+OS_FAMILY = "windows" if OS_NAME == "windows" else "unix"
 
 Scopes = dict[str, str]
 
@@ -61,9 +69,13 @@ def resolve_pom(pom: PomProject, paths: PomPaths | None = None, initialProps: Po
         pom.added_dependencies = PomDeps()
         pom.computed_dependencies = PomMgts()
         pom.computed_type = 'pom'
+        os.chdir(os.path.dirname(pom.file))
 
     # load all pom parents to resolve all properties
     load_pom_parents(pom, paths = paths, props = pom.computed_properties)
+
+    # resolve profiles
+    resolve_profiles(pom)
 
     # resolve all properties
     resolve_properties(pom)
@@ -98,6 +110,105 @@ def resolve_properties(pom: PomProject):
     """
     for prop in pom.computed_properties.values():
         prop.value = resolve_value(prop.value, pom.computed_properties, pom.builtins)
+
+
+def resolve_profiles(pom: PomProject):
+    # skip unsupported profiles
+    if len(pom.profiles) == 0: return
+    #
+    profiles = []
+    for profile in pom.profiles:
+        if len(profile.dependencies) == 0 and len(profile.managements) == 0 and len(profile.properties) == 0 and len(profile.modules) == 0: continue
+        if profile.active_by_default: continue
+        if profile.jdk != '':
+            if check_version(profile.jdk, JDK):
+                profiles.append(profile)
+                continue
+        if profile.os_name != '' or profile.os_family != '' or profile.os_arch != '' or profile.os_version != '':
+            if profile.os_name != '':
+                if profile.os_name[0] == '!' and profile.os_name.lower() == OS_NAME: continue
+                if profile.os_name[0] != '!' and profile.os_name.lower() != OS_NAME: continue
+            if profile.os_family != '':
+                if profile.os_family[0] == '!' and profile.os_family.lower() == OS_FAMILY: continue
+                if profile.os_family[0] != '!' and profile.os_family.lower() != OS_FAMILY: continue
+            if profile.os_arch != '':
+                if profile.os_arch[0] == '!' and profile.os_arch.lower() == OS_ARCH: continue
+                if profile.os_arch[0] != '!' and profile.os_arch.lower() != OS_ARCH: continue
+            if profile.os_version != '':
+                WARN(f"skip profile '{profile.id}' in pom '{pom.gav()}': unsupported os.version activation '{profile.os_version}'")
+                continue
+            profiles.append(profile)
+            continue
+        if profile.property_name != '':
+            if profile.property_name[0] == '!':
+                if profile.property_name[1:] not in pom.computed_properties:
+                    continue
+            else:
+                if profile.property_value == '':
+                    if profile.property_name not in pom.computed_properties:
+                        continue
+                else:
+                    if profile.property_name not in pom.computed_properties:
+                        continue
+                    pv = resolve_value(profile.property_value, pom.computed_properties, pom.builtins)
+                    cv = resolve_value(pom.computed_properties[profile.property_name].value, pom.computed_properties, pom.builtins)
+                    if '$' in pv:
+                        WARN(f"skip profile '{profile.id}' in pom '{pom.gav()}': unsupported '$' in activation '{pv}'")
+                        continue
+                    if '$' in cv:
+                        WARN(f"skip profile '{profile.id}' in pom '{pom.gav()}': unsupported '$' in activation '{cv}'")
+                        continue
+                    if cv != pv:
+                        continue
+            profiles.append(profile)
+            continue
+        if profile.file_exists != '' or profile.file_missing != '':
+            if '$' in profile.file_exists or '$' in profile.file_missing:
+                WARN(f"skip profile '{profile.id}' in pom '{pom.gav()}': unsupported '$' in activation '{profile.file_exists}{profile.file_missing}'")
+                continue
+            if profile.file_exists != '' and not os.path.exists(profile.file_exists):
+                continue
+            if profile.file_missing != '' and os.path.exists(profile.file_missing):
+                continue
+            profiles.append(profile)
+            continue
+    # default profile
+    if len(profiles) == 0:
+        profiles = [ profile for profile in pom.profiles if profile.active_by_default ]
+    # merge profiles
+    for profile in profiles:
+        # for profiles, the last wins, so we need to put them in front
+        pom.dependencies = profile.dependencies + pom.dependencies
+        pom.managements = profile.managements + pom.managements
+        for prop in profile.properties.values():
+            pom.computed_properties.set(prop.name, prop.value)
+
+
+def check_version(version: str, target: str) -> bool:
+    first = version[:1]
+    last = version[-1:]
+    if first not in '[(' or last not in '])':
+        version = f"[{version},)"
+        first = version[:1]
+        last = version[-1:]
+    # get minimal version and maximal version
+    min_version, max_version = version[1:-1].split(',')
+    min_version = min_version.strip()
+    max_version = max_version.strip()
+    min_version = Version(min_version) if min_version != '' else None
+    max_version = Version(max_version) if max_version != '' else None
+    targetV = Version(target)
+    if (
+        min_version is None or
+        (first == '[' and targetV >= min_version) or
+        (first == '(' and targetV > min_version)
+    ) and (
+        max_version is None or
+        (last == ']' and targetV <= max_version) or
+        (last == ')' and targetV < max_version)
+    ):
+        return True
+    return False
 
 
 def load_managements(pom: PomProject, curr: PomProject | None = None, paths: PomPaths | None = None):

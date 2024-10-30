@@ -9,11 +9,13 @@ parser.add_argument('-b', '--basic', action="store_true", help='For basic tree o
 parser.add_argument('-D', '--define', action="append", help='Define properties in format "name=value"')
 parser.add_argument('-f', '--file', default='pom.xml', type=str, help='pom.xml file location')
 parser.add_argument('-pl', '--projects', help="Print only projects in format 'module,module,...'")
+parser.add_argument('-q', '--quiet', action="store_true", help="Disable warnings")
 parser.add_argument('-s', '--sections', default='dependencies', help='Print only sections: project|proj, properties|props, managements|mgts, dependencies|deps, collect|coll, tree, all, none')
 parser.add_argument('--deps', help='Trace dependencies in format "groupId:artifactId,groupId:artifactId,..."')
 parser.add_argument('--poms', action="store_true", help='Trace poms')
 parser.add_argument('--props', help='Trace properties in format "name,name,..."')
 parser.add_argument('--ranges', action="store_true", help='Trace ranges computation')
+parser.add_argument('--jdk', default='21.0.2', help='JDK version')
 parser.add_argument('-w', '--width', type=int, default=120, help='Width of the first colomn')
 
 args = parser.parse_args()
@@ -62,11 +64,16 @@ if args.ranges:
 if trace:
     pom_tracer.TRACER = tracer
 
+if args.quiet:
+    pom_tracer.WARN = lambda _: None
+
 # imports
 from pom_loader import load_pom_from_file, register_pom_locations
 from pom_solver import resolve_pom
 from pom_printer import print_pom
 from pom_struct import PomProperties
+import pom_solver
+pom_solver.JDK = args.jdk
 
 def separator(s):
     # print separator

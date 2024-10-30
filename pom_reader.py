@@ -1,4 +1,4 @@
-from pom_struct import PomProject, PomParent, PomDependency, PomExclusion, PomProperties
+from pom_struct import PomProject, PomParent, PomDependency, PomExclusion, PomProperties, PomProfile, PomDeps
 from lxml import etree
 
 POM_PARSER = etree.XMLParser(
@@ -100,12 +100,69 @@ def read_pom(file: str) -> PomProject:
     modules = find_all(doc, 'modules/module')
     for module in modules:
         pom.modules.append(module.text)
+    
+    # read profiles
+    pom.profiles = []
+    profiles = find_all(doc, 'profiles/profile')
+    for profile in profiles:
+        unexpected_tags(pom, profile, '*', ['id', 'activation', 'dependencies', 'dependencyManagement', 'properties', 'build', 'repositories', 'pluginRepositories', 'modules', 'file', 'distributionManagement', 'reporting'])
+        pro = PomProfile()
+        pro.id = find_text(profile, 'id', '')
+        activation = find(profile, 'activation')
+        if activation is not None:
+            unexpected_tags(pom, activation, '*', ['activeByDefault', 'jdk', 'property', 'os', 'file'])
+            pro.active_by_default = find_text(activation, 'activeByDefault', 'false') == 'true'
+            if find(activation, 'jdk') is not None:
+                pro.jdk = find_text(activation, 'jdk')
+            if find(activation, 'property') is not None:
+                pro.property_name = find_text(activation, 'property/name')
+                pro.property_value = find_text(activation, 'property/value')
+            if find(activation, 'os') is not None:
+                unexpected_tags(pom, activation, 'os', ['name', 'family', 'arch', 'version'])
+                pro.os_name = find_text(activation, 'os/name')
+                pro.os_family = find_text(activation, 'os/family')
+                pro.os_arch = find_text(activation, 'os/arch')
+                pro.os_version = find_text(activation, 'os/version')
+            if find(activation, 'file') is not None:
+                pro.file_exists = find_text(activation, 'file/exists')
+                pro.file_missing = find_text(activation, 'file/missing')
+        
+        pro.dependencies = PomDeps()
+        dependencies = find_all(profile, 'dependencies/dependency')
+        for dep in dependencies:
+            pro.dependencies.append(get_dependency(pom, dep))
+        
+        pro.managements = PomDeps()
+        managements = find_all(profile, 'dependencyManagement/dependencies/dependency')
+        for dep in managements:
+            pro.managements.append(get_dependency(pom, dep))
+        
+        pro.properties = PomProperties()
+        properties = find(profile, 'properties')
+        if properties is not None:
+            for prop in properties.iterchildren():
+                if prop.tag == ns + 'property':
+                    unexpected_tags(pom, prop, '*', ['name','value'])
+                    name = prop.get('name')
+                    value = prop.get('value', '')
+                else:
+                    name = prop.tag[len(ns):]
+                    value = prop.text or ''
+                pro.properties.set(name, value)
+        
+        pro.modules = []
+        modules = find_all(profile, 'modules/module')
+        for module in modules:
+            pro.modules.append(module.text)
+        
+        pom.profiles.append(pro)
+
 
     # return the pom object
     return pom
 
 def get_dependency(pom: PomProject, dep) -> PomDependency:
-    unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier', 'optional'])
+    unexpected_tags(pom, dep, '*', ['groupId', 'artifactId', 'version', 'type', 'scope', 'exclusions', 'classifier', 'optional', 'systemPath'])
     dependency = PomDependency()
     dependency.groupId = find_text(dep, 'groupId')
     dependency.artifactId = find_text(dep, 'artifactId')

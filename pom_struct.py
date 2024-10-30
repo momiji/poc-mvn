@@ -13,9 +13,10 @@ class PomProject:
     parent: 'PomParent | None'
     properties: 'PomProperties'
     builtins: 'PomProperties'
-    managements: list['PomDependency']
-    dependencies: list['PomDependency']
+    managements: 'PomDeps'
+    dependencies: 'PomDeps'
     modules: list[str]
+    profiles: 'PomProfiles'
     # computed
     computed_properties: 'PomProperties'
     initial_managements: 'PomMgts'
@@ -42,6 +43,7 @@ class PomProject:
         pom.modules = self.modules              # not modified in loader and solver
         pom.computed_scope = 'all'
         pom.computed_type = 'pom'
+        pom.profiles = self.profiles            # not modified in loader and solver
         return pom
 
     def gav(self):
@@ -210,11 +212,32 @@ class PomPaths:
         return paths
 
 
+class PomProfile:
+    """
+    Represents a Maven profile.
+    """
+    id: str
+    active_by_default = False
+    property_name = ''
+    property_value = ''
+    jdk = ''
+    os_name = ''
+    os_family = ''
+    os_arch = ''
+    os_version = ''
+    file_exists = ''
+    file_missing = ''
+    properties: 'PomProperties'
+    managements: 'PomDeps'
+    dependencies: 'PomDeps'
+    modules: list[str]
+
+
 PomInfos = PomProject | PomParent | PomDependency
 PomMgts = dict[str, PomDependency]
 PomDeps = list[PomDependency]
 PomExclusions = dict[str, PomExclusion]
-
+PomProfiles = list[PomProfile]
 
 if __name__ == "__main__":
     # verify that the object is deep cloned

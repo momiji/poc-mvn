@@ -1,6 +1,8 @@
-import os
+import os, sys
 
 TRACER: 'Tracer | None' = None
+
+WARN = lambda s: sys.stderr.write(f"Warning: {s}\n")
 
 class Tracer:
     def __init__(self):
