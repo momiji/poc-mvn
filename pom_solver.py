@@ -187,9 +187,11 @@ def resolve_profiles(pom: PomProject):
 def check_version(version: str, target: str) -> bool:
     first = version[:1]
     last = version[-1:]
-    if first not in '[(' or last not in '])':
-        version = f"[{version},)"
+    if first not in '[(':
+        version = f"[{version}"
         first = version[:1]
+    if last not in '])':
+        version = f"{version},)"
         last = version[-1:]
     # get minimal version and maximal version
     min_version, max_version = version[1:-1].split(',')
@@ -473,10 +475,10 @@ def new_initial_managements(initials: PomMgts, computed: PomMgts) -> PomMgts:
     Create a new initial dependencyManagement from an initial and computed one.
     It is not needed to copy computed mgt as it is not modified later because it becomes an initial dependencyMangement.
     """
-    new = computed #.copy()
+    new = computed.copy()
     for ini in initials.values():
         if ini.key_gat() in computed:
-            mgt = computed[ini.key_gat()]
+            mgt = computed[ini.key_gat()].copy()
             trace = TRACER and TRACER.trace_dep(mgt.key_trace())
             if trace and TRACER:
                 TRACER.trace("ini | merging", ini.key_gat(), 'version', ini.version, 'scope', ini.scope, 'optional', ini.optional)

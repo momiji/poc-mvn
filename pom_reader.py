@@ -115,15 +115,17 @@ def read_pom(file: str) -> PomProject:
             if find(activation, 'jdk') is not None:
                 pro.jdk = find_text(activation, 'jdk')
             if find(activation, 'property') is not None:
+                unexpected_tags(pom, activation, 'property/*', ['name', 'value'])
                 pro.property_name = find_text(activation, 'property/name')
                 pro.property_value = find_text(activation, 'property/value')
             if find(activation, 'os') is not None:
-                unexpected_tags(pom, activation, 'os', ['name', 'family', 'arch', 'version'])
+                unexpected_tags(pom, activation, 'os/*', ['name', 'family', 'arch', 'version'])
                 pro.os_name = find_text(activation, 'os/name')
                 pro.os_family = find_text(activation, 'os/family')
                 pro.os_arch = find_text(activation, 'os/arch')
                 pro.os_version = find_text(activation, 'os/version')
             if find(activation, 'file') is not None:
+                unexpected_tags(pom, activation, 'file/*', ['exists', 'missing'])
                 pro.file_exists = find_text(activation, 'file/exists')
                 pro.file_missing = find_text(activation, 'file/missing')
         

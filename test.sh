@@ -34,7 +34,11 @@ rm tmp/test-$t.md5.test
 cat tmp/test-$t.coll | sed -n "/---.*@ $module/,/---/p" | sed -n '/\[INFO\]   /p' | awk '{print $2}' | sort > tmp/test-$t.coll.sorted
 
 # deps.py
-python deps.py -f tests/pom$t.xml --sections deps -pl $module | grep '^ ' | sed 's/^ *//' > tmp/test-$t.deps.tmp && mv tmp/test-$t.deps.tmp tmp/test-$t.deps
+python deps.py -f tests/pom$t.xml --sections deps -pl $module | grep '^ ' | sed 's/^ *//' > tmp/test-$t.deps.tmp || {
+    echo "test $t failed"
+    exit 1
+}
+mv tmp/test-$t.deps.tmp tmp/test-$t.deps
 cat tmp/test-$t.deps | sed 's/#.*//' | tr -d ' ' | sort -u | sed '/:parent:/d' > tmp/test-$t.deps.sorted
 
 # compare

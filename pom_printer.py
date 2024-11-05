@@ -124,9 +124,9 @@ def print_pom(pom: PomProject, indent: int = 120, color = os.isatty(1), basic = 
         # print tree
         print(f"Tree Dependencies ({len(dep_nodes) - 1}):")
         print()
-        elbow = "\\- " if basic else "└─ "
+        elbow = "\\- " if basic else "└──"
         pipe = "|  " if basic else "│  "
-        tee = "+- " if basic else "├─ "
+        tee = "+- " if basic else "├──"
         blank = "   "
         def tree_loop(start, header=''):
             childs = dep_nodes[start.key_excl()][1]

@@ -22,8 +22,9 @@
             "request": "launch",
             "program": "deps.py",
             "args": [
-                "~/work/raven2/bug-json-parser/Jarvis/crr/pom.xml",
+                "-f", "~/work/raven2/bug-json-parser/Jarvis/crr/pom.xml",
                 "-pl", "crr-compute-ecl",
+                "--deps", "org.projectlombok:lombok"
             ], 
             "console": "integratedTerminal"
         },
